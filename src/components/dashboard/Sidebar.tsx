@@ -41,11 +41,6 @@ export function Sidebar() {
             >
               <n.Icon className={`h-[18px] w-[18px] ${active ? "text-brand" : "text-fog group-hover:text-chalk"}`} />
               <span className="flex-1 font-medium">{n.label}</span>
-              {n.badge && (
-                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1.5 text-[11px] font-bold text-ink-950">
-                  {n.badge}
-                </span>
-              )}
             </Link>
           );
         })}
