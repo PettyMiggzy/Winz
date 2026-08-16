@@ -216,14 +216,23 @@ export async function recordClipDecision(
         const seen = new Set(existing.map((e) => e.accountId));
         const toCreate = accounts.filter((a) => !seen.has(a.id));
         if (toCreate.length > 0) {
+          // Stagger: never post to two accounts at once. First goes out with a
+          // small jitter, each next one 90–120 min later (spam-detection
+          // guidance: >=90 min spacing, randomized, never simultaneous).
+          let t = Date.now() + Math.floor(Math.random() * 5) * 60_000;
           await prisma.post.createMany({
-            data: toCreate.map((a) => ({
-              tenantId: clip.tenantId,
-              clipId,
-              accountId: a.id,
-              platform: a.platform,
-              status: "SCHEDULED" as const,
-            })),
+            data: toCreate.map((a) => {
+              const scheduledFor = new Date(t);
+              t += (90 + Math.floor(Math.random() * 30)) * 60_000;
+              return {
+                tenantId: clip.tenantId,
+                clipId,
+                accountId: a.id,
+                platform: a.platform,
+                status: "SCHEDULED" as const,
+                scheduledFor,
+              };
+            }),
           });
           await prisma.clip.update({ where: { id: clipId }, data: { status: "SCHEDULED" } });
         }

@@ -6,7 +6,20 @@
  */
 import { sql } from "../db.ts";
 import { publicUrl } from "../r2.ts";
-import { blotatoConfigured, publish, type Platform } from "./blotato.ts";
+import * as blotato from "./blotato.ts";
+import * as uploadpost from "./uploadpost.ts";
+import type { Platform } from "./uploadpost.ts";
+
+/**
+ * Provider selection: upload-post first (researched pick — cheapest with the
+ * TikTok audit covered), Blotato as the documented fallback. Whichever has an
+ * API key configured wins; upload-post takes precedence if both are set.
+ */
+function provider() {
+  if (uploadpost.uploadPostConfigured()) return { name: "upload-post", publish: uploadpost.publish };
+  if (blotato.blotatoConfigured()) return { name: "blotato", publish: blotato.publish };
+  return null;
+}
 
 interface DuePost {
   id: string;
@@ -46,8 +59,10 @@ async function processOne(p: DuePost): Promise<void> {
     if (!p.externalAccountId) {
       throw new Error("account not linked to a posting provider (SocialAccount.externalId empty)");
     }
+    const prov = provider();
+    if (!prov) throw new Error("no posting provider configured");
     const platform = p.platform.toLowerCase() as Platform;
-    const res = await publish({
+    const res = await prov.publish({
       accountId: p.externalAccountId,
       platform,
       mediaUrl: publicUrl(p.storageKey),
@@ -68,11 +83,12 @@ async function processOne(p: DuePost): Promise<void> {
 }
 
 export async function runPublishPoller(intervalMs = 7000): Promise<void> {
-  if (!blotatoConfigured()) {
-    console.info("[winclipz-worker] BLOTATO_API_KEY not set — publish poller idle (clips still cut, just not auto-posted).");
+  const prov = provider();
+  if (!prov) {
+    console.info("[winclipz-worker] no posting provider configured (set UPLOADPOST_API_KEY or BLOTATO_API_KEY) — publish poller idle (clips still cut, just not auto-posted).");
     return;
   }
-  console.info("[winclipz-worker] publish poller watching for approved clips…");
+  console.info(`[winclipz-worker] publish poller watching for approved clips… (provider: ${prov.name})`);
   let stop = false;
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => { stop = true; });

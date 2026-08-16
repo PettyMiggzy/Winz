@@ -108,6 +108,7 @@ model Stream {
   status          StreamStatus @default(LIVE)
   sourceKey       String? // object key in R2
   sourceUrl       String? // public URL the worker fetches
+  claimedAt       DateTime? // when a worker claimed it; stale claims get requeued
   startedAt       DateTime     @default(now())
   endedAt         DateTime?
   durationSec     Int?

@@ -39,12 +39,32 @@ interface QueuedStream {
 async function ensureSchema(): Promise<void> {
   const [{ present }] = await sql<{ present: string | null }[]>`
     SELECT to_regclass('public."Stream"')::text AS present`;
-  if (present) return;
-  console.info("[winclipz-worker] no tables found — creating schema…");
-  const schemaPath = fileURLToPath(new URL("./schema.sql", import.meta.url));
-  const ddl = await readFile(schemaPath, "utf8");
-  await sql.unsafe(ddl).simple(); // multiple statements → simple protocol
-  console.info("[winclipz-worker] schema created.");
+  if (!present) {
+    console.info("[winclipz-worker] no tables found — creating schema…");
+    const schemaPath = fileURLToPath(new URL("./schema.sql", import.meta.url));
+    const ddl = await readFile(schemaPath, "utf8");
+    await sql.unsafe(ddl).simple(); // multiple statements → simple protocol
+    console.info("[winclipz-worker] schema created.");
+  }
+  // Idempotent micro-migrations for columns newer than the base schema.
+  await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "claimedAt" timestamptz`;
+  // Recover jobs orphaned by container restarts before claimedAt existed.
+  const legacy = await sql`
+    UPDATE "Stream" SET status = 'QUEUED'
+    WHERE status = 'PROCESSING' AND "claimedAt" IS NULL`;
+  if (legacy.count > 0) console.info(`[winclipz-worker] requeued ${legacy.count} orphaned job(s)`);
+}
+
+/**
+ * Requeue jobs whose worker died mid-processing (deploy restarts, OOM). A job
+ * claimed >2h ago that's still PROCESSING is presumed dead — safe for our
+ * longest streams, and claims are CAS so a live worker can't double-claim.
+ */
+async function reapStale(): Promise<void> {
+  const r = await sql`
+    UPDATE "Stream" SET status = 'QUEUED', "claimedAt" = NULL
+    WHERE status = 'PROCESSING' AND "claimedAt" < now() - interval '2 hours'`;
+  if (r.count > 0) console.info(`[winclipz-worker] requeued ${r.count} stale job(s)`);
 }
 
 /** Claim the oldest QUEUED stream (CAS on status). Returns null if none. */
@@ -56,7 +76,7 @@ async function claimNext(): Promise<QueuedStream | null> {
   if (found.length === 0) return null;
   const s = found[0];
   const claim = await sql`
-    UPDATE "Stream" SET status = 'PROCESSING'
+    UPDATE "Stream" SET status = 'PROCESSING', "claimedAt" = now()
     WHERE id = ${s.id} AND status = 'QUEUED'`;
   return claim.count === 1 ? s : null; // lost the race → try again next tick
 }
@@ -119,8 +139,10 @@ export async function runPoller(intervalMs = 5000): Promise<void> {
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => { stop = true; });
   }
+  let tick = 0;
   while (!stop) {
     try {
+      if (tick++ % 24 === 0) await reapStale(); // ~every 2 min at 5s interval
       const s = await claimNext();
       if (s) await processOne(s);
       else await new Promise((r) => setTimeout(r, intervalMs));

@@ -12,6 +12,16 @@ RUN curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp 
   && chmod a+rx /usr/local/bin/yt-dlp \
   && yt-dlp --version
 
+# Deno = yt-dlp's preferred JS runtime for YouTube extraction (better format
+# access, fewer bot-checks). Official static binary, no deps.
+RUN apt-get update && apt-get install -y --no-install-recommends unzip \
+  && curl -fsSL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip \
+      -o /tmp/deno.zip \
+  && unzip -q /tmp/deno.zip -d /usr/local/bin \
+  && rm /tmp/deno.zip \
+  && deno --version \
+  && apt-get purge -y unzip && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY worker/package.json ./
 RUN npm install --no-audit --no-fund
