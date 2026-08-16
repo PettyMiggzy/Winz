@@ -89,7 +89,7 @@ const sections: LegalSection[] = [
       <p>
         To delete your account and associated data, use the delete option in
         settings or email{" "}
-        <a href="mailto:privacy@winz.app" className="text-chalk hover:text-brand">privacy@winz.app</a>.
+        <a href="mailto:admin@winclipz.net" className="text-chalk hover:text-brand">admin@winclipz.net</a>.
         We will process the request and remove your content from our systems and
         connected-platform tokens within a reasonable period.
       </p>
@@ -110,7 +110,7 @@ const sections: LegalSection[] = [
       <p>
         We may update this policy; material changes will be posted here with a new
         date. Questions or requests? Contact{" "}
-        <a href="mailto:privacy@winz.app" className="text-chalk hover:text-brand">privacy@winz.app</a>.
+        <a href="mailto:admin@winclipz.net" className="text-chalk hover:text-brand">admin@winclipz.net</a>.
       </p>
     ),
   },

@@ -97,7 +97,7 @@ const sections: LegalSection[] = [
         We respond to notices of alleged copyright infringement and, in
         appropriate cases, terminate the accounts of repeat infringers. To submit
         a notice, contact our designated agent at{" "}
-        <a href="mailto:legal@winz.app" className="text-chalk hover:text-brand">legal@winz.app</a>.
+        <a href="mailto:admin@winclipz.net" className="text-chalk hover:text-brand">admin@winclipz.net</a>.
         A valid notice must include the information required under 17 U.S.C.
         § 512(c)(3).
       </p>
@@ -152,7 +152,7 @@ const sections: LegalSection[] = [
       <p>
         We may update these Terms; material changes will be posted here with a new
         &ldquo;last updated&rdquo; date. Questions? Contact{" "}
-        <a href="mailto:hello@winz.app" className="text-chalk hover:text-brand">hello@winz.app</a>.
+        <a href="mailto:admin@winclipz.net" className="text-chalk hover:text-brand">admin@winclipz.net</a>.
       </p>
     ),
   },

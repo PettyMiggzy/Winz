@@ -24,7 +24,7 @@ export function Footer() {
               { href: "/developers", label: "API for developers" },
               { href: "/#proof", label: "The proof" },
               { href: "/#faq", label: "FAQ" },
-              { href: "mailto:hello@winz.app", label: "Contact" },
+              { href: "mailto:admin@winclipz.net", label: "Contact" },
             ]} />
             <FooterCol title="Legal" links={[
               { href: "/terms", label: "Terms" },

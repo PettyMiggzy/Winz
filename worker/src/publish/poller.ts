@@ -9,6 +9,7 @@ import { publicUrl } from "../r2.ts";
 import * as blotato from "./blotato.ts";
 import * as uploadpost from "./uploadpost.ts";
 import * as tiktok from "./tiktok.ts";
+import * as instagram from "./instagram.ts";
 import type { Platform } from "./uploadpost.ts";
 
 /**
@@ -73,6 +74,13 @@ async function processOne(p: DuePost): Promise<void> {
         caption: p.caption ?? p.title,
         meta: (p.meta ?? {}) as tiktok.TikTokMeta,
       });
+    } else if (platform === "instagram" && p.hasOwnToken) {
+      // In-house Instagram (Standard Access — no review needed for own accounts).
+      res = await instagram.publishToInstagram({
+        socialAccountId: p.accountId,
+        mediaUrl,
+        caption: p.caption ?? p.title,
+      });
     } else {
       if (!p.externalAccountId) {
         throw new Error("account not linked to a posting provider (SocialAccount.externalId empty)");
@@ -102,7 +110,10 @@ async function processOne(p: DuePost): Promise<void> {
 
 export async function runPublishPoller(intervalMs = 7000): Promise<void> {
   const prov = provider();
-  const inHouse = tiktok.tiktokConfigured() ? "in-house TikTok" : null;
+  const inHouse = [
+    tiktok.tiktokConfigured() ? "in-house TikTok" : null,
+    "in-house Instagram", // token-gated per account; no global key needed
+  ].filter(Boolean).join(" + ");
   if (!prov && !inHouse) {
     console.info("[winclipz-worker] no posting provider configured (set UPLOADPOST_API_KEY / BLOTATO_API_KEY / TIKTOK_CLIENT_KEY) — publish poller idle (clips still cut, just not auto-posted).");
     return;
