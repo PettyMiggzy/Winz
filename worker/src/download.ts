@@ -68,7 +68,9 @@ async function ytdlpDownload(url: string, outPath: string): Promise<void> {
       "--no-progress",
       "--retries", "3",
       "--sleep-requests", "1", // gentler pacing — avoids 429s on repeat runs
-      ...(proxy ? ["--proxy", proxy] : []),
+      // Residential proxies often terminate TLS with legacy handshakes; yt-dlp
+      // errors SSLV3_ALERT_HANDSHAKE_FAILURE without this flag.
+      ...(proxy ? ["--proxy", proxy, "--legacy-server-connect"] : []),
       ...(cookies ? ["--cookies", cookies] : []),
       "-o", outPath,
       url,
