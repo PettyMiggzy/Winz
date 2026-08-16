@@ -25,6 +25,8 @@ export interface Clip {
   views?: number;
   likes?: number;
   thumbTint: string; // gradient class for the placeholder thumb
+  /** Public URL of the rendered mp4 (real clips in cloud storage only). */
+  videoUrl?: string;
 }
 
 export const clips: Clip[] = [

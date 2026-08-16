@@ -64,9 +64,17 @@ export async function getClips(): Promise<Clip[]> {
     include: { stream: true, posts: true },
     take: 200,
   });
+  const r2Base = process.env.R2_PUBLIC_BASE_URL?.replace(/\/$/, "");
   return rows.map((c): Clip => {
     const posted = c.posts.find((p) => p.status === "POSTED");
+    // Only cloud-stored clips are watchable; local-path keys from dev workers
+    // have no public URL.
+    const videoUrl =
+      r2Base && c.storageKey && !c.storageKey.startsWith("/")
+        ? `${r2Base}/${c.storageKey}`
+        : undefined;
     return {
+      videoUrl,
       id: c.id,
       title: c.title,
       hook: c.hook ?? "",

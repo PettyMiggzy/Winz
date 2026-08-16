@@ -13,7 +13,7 @@ const NAV = [
   { href: "/dashboard/review", label: "Review queue", Icon: IconInbox },
   { href: "/dashboard/clips", label: "Clips", Icon: IconScissors },
   { href: "/dashboard/accounts", label: "Accounts", Icon: IconLink },
-  { href: "/dashboard/onboarding", label: "Account setup", Icon: IconCheck },
+  { href: "/dashboard/onboarding", label: "Setup guide", Icon: IconCheck },
   { href: "/dashboard/analytics", label: "Analytics", Icon: IconChart },
   { href: "/dashboard/settings", label: "Settings", Icon: IconSettings },
 ];

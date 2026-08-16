@@ -35,10 +35,25 @@ export default async function ClipsPage() {
           {clips.map((c) => (
             <div key={c.id} className="card overflow-hidden p-0">
               <div className="p-2.5">
-                <ClipThumb tint={c.thumbTint} duration={c.durationSec} score={c.score} />
+                {c.videoUrl ? (
+                  <video
+                    src={c.videoUrl}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="aspect-[9/16] w-full rounded-lg border border-line bg-ink-950 object-contain"
+                  />
+                ) : (
+                  <ClipThumb tint={c.thumbTint} duration={c.durationSec} score={c.score} />
+                )}
               </div>
               <div className="px-3 pb-3">
                 <p className="line-clamp-2 text-sm font-semibold leading-snug">{c.title}</p>
+                {c.videoUrl && (
+                  <a href={c.videoUrl} download target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] font-medium text-brand hover:underline">
+                    Download MP4 ↓
+                  </a>
+                )}
                 <div className="mt-2 flex items-center justify-between">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${STATUS_STYLE[c.status]}`}>
                     {c.status === "review" ? "in review" : c.status}

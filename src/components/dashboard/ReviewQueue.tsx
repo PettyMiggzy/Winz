@@ -123,8 +123,19 @@ export function ReviewQueue({
         <div className="space-y-4">
           {pending.map((c) => (
             <div key={c.id} className="card flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-              <div className="w-20 shrink-0">
-                <ClipThumb tint={c.thumbTint} duration={c.durationSec} score={c.score} />
+              <div className={`shrink-0 ${c.videoUrl ? "w-36 sm:w-40" : "w-20"}`}>
+                {c.videoUrl ? (
+                  // Real rendered clip — watch it right here before approving.
+                  <video
+                    src={c.videoUrl}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="aspect-[9/16] w-full rounded-lg border border-line bg-ink-950 object-contain"
+                  />
+                ) : (
+                  <ClipThumb tint={c.thumbTint} duration={c.durationSec} score={c.score} />
+                )}
               </div>
 
               <div className="min-w-0 flex-1">
@@ -139,6 +150,17 @@ export function ReviewQueue({
                 </div>
                 <h3 className="mt-2 truncate font-bold">{c.title}</h3>
                 <p className="truncate text-sm text-fog">Hook: “{c.hook}” · {c.stream} · {c.createdAt}</p>
+                {c.videoUrl && (
+                  <a
+                    href={c.videoUrl}
+                    download
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-block text-xs font-medium text-brand hover:underline"
+                  >
+                    Download MP4 ↓
+                  </a>
+                )}
 
                 <div className="mt-3 flex items-center gap-1.5">
                   <span className="mr-1 text-xs text-fog">Post to:</span>
