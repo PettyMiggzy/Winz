@@ -9,7 +9,7 @@
     "start": "node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npx --yes tsx test/ffmpeg.test.mjs && npx --yes tsx test/detect.test.mjs && npx --yes tsx test/captions.test.mjs"
+    "test": "npx --yes tsx test/engine.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

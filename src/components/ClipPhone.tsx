@@ -42,9 +42,11 @@ export function ClipPhone({
         </div>
       </div>
 
-      {/* centered watermark (the money element) */}
-      <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
-        <span className="rounded-md bg-ink-950/35 px-2 py-0.5 text-[11px] font-bold tracking-wide text-white/90 backdrop-blur-sm">
+      {/* Subtle corner CTA — NOT a persistent center logo (that can make a
+          TikTok ineligible for the For You feed). The real CTA lives in the
+          username, bio, and a spoken line. */}
+      <div className="absolute right-2 top-10">
+        <span className="rounded bg-ink-950/40 px-1.5 py-0.5 text-[9px] font-semibold text-white/75 backdrop-blur-sm">
           {handle}
         </span>
       </div>

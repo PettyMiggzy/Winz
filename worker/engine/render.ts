@@ -1,0 +1,46 @@
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { ResolvedClip, Word } from './types.ts';
+import { buildAss } from './captions.ts';
+import { run } from './ffmpeg.ts';
+
+/** 9:16 1080x1920, H.264 + AAC, +faststart (moov at front — required for
+ *  Instagram's API and the #1 silent upload failure if you forget it). */
+export async function renderClip(
+  input: string,
+  clip: ResolvedClip,
+  allWords: Word[],
+  outDir: string,
+  layout: 'crop' | 'blurpad' = 'crop',
+  burnHook = true,
+): Promise<string> {
+  const dur = clip.end - clip.start;
+  const outFile = join(outDir, `${clip.slug}.mp4`);
+  const assFile = join(outDir, `${clip.slug}.ass`);
+
+  const clipWords = allWords
+    .filter((w) => w.start >= clip.start - 0.05 && w.end <= clip.end + 0.25)
+    .map((w) => ({ ...w, start: Math.max(0, w.start - clip.start), end: Math.max(0, w.end - clip.start) }));
+
+  await writeFile(assFile, buildAss(clipWords, dur, burnHook ? clip.title : undefined), 'utf8');
+
+  const geometry =
+    layout === 'blurpad'
+      ? `split[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24[bgb];[fg]scale=1080:-2[fgs];[bgb][fgs]overlay=(W-w)/2:(H-h)/2`
+      : `crop='min(iw,ih*9/16)':ih,scale=1080:1920`;
+
+  // input seeking (-ss before -i) + re-encode = frame-accurate cut
+  await run('ffmpeg', [
+    '-y', '-v', 'error',
+    '-ss', clip.start.toFixed(3),
+    '-i', input,
+    '-t', dur.toFixed(3),
+    '-vf', `${geometry},ass=${assFile.replace(/([:\\'])/g, '\\$1')}`,
+    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac', '-b:a', '128k', '-ar', '48000',
+    '-movflags', '+faststart',
+    outFile,
+  ]);
+  return outFile;
+}

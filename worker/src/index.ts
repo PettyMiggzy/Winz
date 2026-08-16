@@ -4,9 +4,9 @@ import { processStream } from "./pipeline.js";
 
 const worker = makeWorker(async (job) => {
   console.info(`[winz-worker] processing stream ${job.streamId} (tenant ${job.tenantId})`);
-  const clips = await processStream(job);
-  console.info(`[winz-worker] produced ${clips.length} clips for ${job.streamId}`);
-  return { clips: clips.length };
+  const manifest = await processStream(job);
+  console.info(`[winz-worker] produced ${manifest.clips.length} clips for ${job.streamId} (${manifest.dropped.length} dropped)`);
+  return { clips: manifest.clips.length };
 });
 
 worker.on("failed", (job, err) => {

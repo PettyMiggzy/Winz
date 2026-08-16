@@ -45,8 +45,12 @@ export function SettingsForm() {
         {/* Branding */}
         <section className="card p-6">
           <h3 className="font-bold">Branding</h3>
-          <p className="mt-1 text-sm text-fog">This appears on every clip, centered where no platform UI covers it.</p>
-          <label htmlFor="wm-input" className="mt-4 block text-xs font-medium uppercase tracking-wide text-fog">Watermark text</label>
+          <p className="mt-1 text-sm text-fog">
+            Your channel CTA. We keep it subtle — a small corner tag and an optional
+            end-card, not a big center logo (TikTok can suppress reach on videos
+            with a superimposed logo). The strongest CTA is your username + bio.
+          </p>
+          <label htmlFor="wm-input" className="mt-4 block text-xs font-medium uppercase tracking-wide text-fog">Channel CTA text</label>
           <input
             id="wm-input"
             value={watermark}
