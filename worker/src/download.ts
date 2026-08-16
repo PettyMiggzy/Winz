@@ -56,6 +56,9 @@ async function directDownload(url: string, outPath: string): Promise<void> {
 
 async function ytdlpDownload(url: string, outPath: string): Promise<void> {
   const cookies = await cookiesFile();
+  // Residential proxy (http://user:pass@host:port) — the standard fix for
+  // YouTube's datacenter-IP bot checks. Set YTDLP_PROXY to enable.
+  const proxy = process.env.YTDLP_PROXY;
   return new Promise((resolve, reject) => {
     // bv*+ba/b → best video+audio, fall back to best single file; merge to mp4.
     const args = [
@@ -65,6 +68,7 @@ async function ytdlpDownload(url: string, outPath: string): Promise<void> {
       "--no-progress",
       "--retries", "3",
       "--sleep-requests", "1", // gentler pacing — avoids 429s on repeat runs
+      ...(proxy ? ["--proxy", proxy] : []),
       ...(cookies ? ["--cookies", cookies] : []),
       "-o", outPath,
       url,
