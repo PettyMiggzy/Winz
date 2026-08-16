@@ -10,13 +10,18 @@ if (!url || !/^postgres(ql)?:\/\//.test(url)) {
   process.exit(0);
 }
 
+// `prisma db push` runs DDL, which wants a DIRECT (unpooled) connection. Neon's
+// Vercel integration exposes that as DATABASE_URL_UNPOOLED — prefer it so the
+// push doesn't fail against the PgBouncer pooler. Falls back to DATABASE_URL.
+const pushUrl = process.env.DATABASE_URL_UNPOOLED || url;
+
 console.log("[db-push] DATABASE_URL found — syncing tables from schema…");
 // No --accept-data-loss: db push applies additive changes without prompting and
 // errors out (safe) rather than dropping columns that would lose data.
 const res = spawnSync(
   "npx",
   ["prisma", "db", "push", "--skip-generate"],
-  { stdio: "inherit", shell: false }
+  { stdio: "inherit", shell: false, env: { ...process.env, DATABASE_URL: pushUrl } }
 );
 
 if (res.status !== 0) {
