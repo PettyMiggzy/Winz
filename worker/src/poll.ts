@@ -16,6 +16,7 @@ import postgres from "postgres";
 import { processVideo } from "../engine/index.ts";
 import { detectMusic } from "./music.ts";
 import { config } from "./config.ts";
+import { r2Configured, uploadFile } from "./r2.ts";
 
 const sql = postgres(process.env.DATABASE_URL ?? "", { max: 4 });
 
@@ -60,13 +61,22 @@ async function processOne(s: QueuedStream): Promise<void> {
     for (const c of manifest.clips) {
       const music = await detectMusic(c.file);
       if (music.action === "skip") continue;
+      const clipId = crypto.randomUUID();
+      // Upload the rendered mp4 to R2 so it's durable + web-servable; store the
+      // R2 key. Without R2 configured, fall back to the local path (dev only —
+      // the file won't survive a restart, but the clip row still appears).
+      let storageKey = c.file;
+      if (r2Configured) {
+        storageKey = `clips/${s.tenantId}/${s.id}/${clipId}.mp4`;
+        await uploadFile(storageKey, c.file, "video/mp4");
+      }
       await sql`
         INSERT INTO "Clip"
           (id, "tenantId", "streamId", title, hook, "durationSec", score, signal,
            "flaggedMusic", "storageKey", "startMs", "endMs")
-        VALUES (${crypto.randomUUID()}, ${s.tenantId}, ${s.id}, ${c.title}, ${c.caption},
+        VALUES (${clipId}, ${s.tenantId}, ${s.id}, ${c.title}, ${c.caption},
            ${Math.round(c.end - c.start)}, ${Math.round(c.score)}, ${c.category},
-           ${music.flagged}, ${c.file}, ${Math.round(c.start * 1000)}, ${Math.round(c.end * 1000)})`;
+           ${music.flagged}, ${storageKey}, ${Math.round(c.start * 1000)}, ${Math.round(c.end * 1000)})`;
     }
     await sql`UPDATE "Stream" SET status = 'DONE' WHERE id = ${s.id}`;
     console.info(`[${s.id}] done — ${manifest.clips.length} clips`);
