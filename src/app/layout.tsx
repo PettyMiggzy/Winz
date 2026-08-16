@@ -30,9 +30,8 @@ export const metadata: Metadata = {
       "Automatic highlight clips from your streams, branded and posted everywhere.",
     images: ["/generated/og.webp"],
   },
-  icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-  },
+  // Favicon + apple/PWA icons are provided by src/app/icon.svg and
+  // src/app/apple-icon.png via Next's file conventions.
 };
 
 export const viewport: Viewport = {
