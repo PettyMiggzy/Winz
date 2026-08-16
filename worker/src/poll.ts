@@ -8,9 +8,10 @@
  * camelCase columns), so no cross-directory Prisma generation is needed here.
  */
 
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import postgres from "postgres";
 import { processVideo } from "../engine/index.ts";
@@ -28,6 +29,23 @@ interface QueuedStream {
   tenantId: string;
   sourceUrl: string | null;
   title: string;
+}
+
+/**
+ * Create the schema in whatever database this worker is actually connected to,
+ * if it isn't there yet. This sidesteps multi-branch / multi-project confusion:
+ * the tables always land in the DB the worker uses. Idempotent — skips when the
+ * "Stream" table already exists.
+ */
+async function ensureSchema(): Promise<void> {
+  const [{ present }] = await sql<{ present: string | null }[]>`
+    SELECT to_regclass('public."Stream"')::text AS present`;
+  if (present) return;
+  console.info("[winclipz-worker] no tables found — creating schema…");
+  const schemaPath = fileURLToPath(new URL("./schema.sql", import.meta.url));
+  const ddl = await readFile(schemaPath, "utf8");
+  await sql.unsafe(ddl).simple(); // multiple statements → simple protocol
+  console.info("[winclipz-worker] schema created.");
 }
 
 /** Claim the oldest QUEUED stream (CAS on status). Returns null if none. */
@@ -92,6 +110,7 @@ async function processOne(s: QueuedStream): Promise<void> {
 }
 
 export async function runPoller(intervalMs = 5000): Promise<void> {
+  await ensureSchema();
   console.info("[winclipz-worker] polling for QUEUED streams…");
   let stop = false;
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
