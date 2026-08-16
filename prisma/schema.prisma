@@ -23,6 +23,12 @@ enum AccountRole {
   CLIPS
 }
 
+enum WarmupState {
+  NEW // created, not yet connected/warming
+  WARMING // connected, ramping posting cadence up
+  READY // fully warmed, full cadence
+}
+
 enum StreamStatus {
   LIVE
   PROCESSING
@@ -77,6 +83,8 @@ model SocialAccount {
   handle         String
   externalId     String?
   connected      Boolean     @default(false)
+  warmupState    WarmupState @default(NEW)
+  connectedAt    DateTime?
   followers      Int?
   // Tokens are encrypted at rest in production (app-layer). Never logged.
   accessToken    String?

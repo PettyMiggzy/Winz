@@ -1,10 +1,15 @@
+import Link from "next/link";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { PlatformBadge, platformLabel } from "@/components/PlatformBadge";
-import { IconCheck, IconLink } from "@/components/Icons";
-import { type Platform } from "@/lib/mock";
+import { IconCheck, IconLink, IconArrow, IconClock } from "@/components/Icons";
+import { type Platform, type Account } from "@/lib/mock";
 import { getAccounts } from "@/server/store";
+import { rampCapForDay, warmupPercent } from "@/lib/ramp";
 
 const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
+// Slot caps for the current plan (Pro). YouTube is capped lower on purpose —
+// splitting Shorts views across channels hurts monetization.
+const SLOT_CAP: Record<Platform, number> = { tiktok: 4, youtube: 2, instagram: 4 };
 
 export default async function AccountsPage() {
   const accounts = await getAccounts();
@@ -15,60 +20,50 @@ export default async function AccountsPage() {
         subtitle="Connect the accounts Winz posts to. Different clips go to each — never the same clip twice."
       />
       <div className="space-y-8 px-5 py-6 sm:px-8">
-        <div className="card flex items-start gap-3 p-4">
-          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand/15 text-brand">
-            <IconCheck className="h-4 w-4" />
-          </span>
-          <p className="text-sm text-fog">
-            <span className="font-semibold text-chalk">Why a &ldquo;main&rdquo; and a &ldquo;clips&rdquo; account?</span>{" "}
-            Platforms bury the same video posted twice, so Winz gives each account
-            different clips. Two accounts per platform is the sweet spot for reach
-            without tripping duplicate-content filters.
-          </p>
+        {/* Setup CTA */}
+        <div className="card flex flex-col items-start justify-between gap-4 p-5 sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand/15 text-brand">
+              <IconCheck className="h-4.5 w-4.5" />
+            </span>
+            <p className="max-w-2xl text-sm text-fog">
+              <span className="font-semibold text-chalk">New accounts need a safe setup.</span>{" "}
+              Create them on your phone (home wifi, spaced out), warm them up, then
+              connect. Winz then ramps posting slowly so nothing gets flagged.
+            </p>
+          </div>
+          <Link href="/dashboard/onboarding" className="btn-primary shrink-0">
+            Account setup guide <IconArrow className="h-4 w-4" />
+          </Link>
         </div>
 
         {PLATFORMS.map((p) => {
           const list = accounts.filter((a) => a.platform === p);
+          const used = list.filter((a) => a.connected).length;
           return (
             <div key={p}>
-              <div className="mb-3 flex items-center gap-2">
-                <PlatformBadge platform={p} />
-                <h2 className="font-bold">{platformLabel(p)}</h2>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <PlatformBadge platform={p} />
+                  <h2 className="font-bold">{platformLabel(p)}</h2>
+                </div>
+                <span className="pill">
+                  {used} of {SLOT_CAP[p]} slots
+                  {p === "youtube" && <span className="ml-1 text-brand">· capped for monetization</span>}
+                </span>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 {list.map((a) => (
-                  <div key={a.id} className="card flex items-center justify-between p-5">
-                    <div className="flex items-center gap-3">
-                      <div className={`grid h-11 w-11 place-items-center rounded-xl ${a.connected ? "bg-ink-800 text-chalk" : "border border-dashed border-line text-fog"}`}>
-                        <PlatformBadge platform={p} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold">{a.handle}</p>
-                          <span className="rounded-full bg-ink-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fog">
-                            {a.role}
-                          </span>
-                        </div>
-                        {a.connected ? (
-                          <p className="text-xs text-fog">
-                            {a.followers?.toLocaleString()} followers · {a.postsThisWeek} posts this week
-                          </p>
-                        ) : (
-                          <p className="text-xs text-fog">Not connected</p>
-                        )}
-                      </div>
-                    </div>
-                    {a.connected ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-3 py-1 text-xs font-semibold text-brand">
-                        <span className="h-1.5 w-1.5 rounded-full bg-brand" /> Connected
-                      </span>
-                    ) : (
-                      <button className="btn-ghost text-sm">
-                        <IconLink className="h-4 w-4" /> Connect
-                      </button>
-                    )}
-                  </div>
+                  <AccountCard key={a.id} account={a} platform={p} />
                 ))}
+                {used < SLOT_CAP[p] && list.length < SLOT_CAP[p] && (
+                  <Link
+                    href="/dashboard/onboarding"
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-line p-5 text-sm text-fog transition-colors hover:border-brand/40 hover:text-chalk"
+                  >
+                    <IconLink className="h-4 w-4" /> Add another {platformLabel(p)} account
+                  </Link>
+                )}
               </div>
             </div>
           );
@@ -80,5 +75,72 @@ export default async function AccountsPage() {
         </p>
       </div>
     </>
+  );
+}
+
+function AccountCard({ account: a, platform: p }: { account: Account; platform: Platform }) {
+  const day = a.warmupDay ?? 0;
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`grid h-11 w-11 place-items-center rounded-xl ${a.connected ? "bg-ink-800 text-chalk" : "border border-dashed border-line text-fog"}`}>
+            <PlatformBadge platform={p} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold">{a.handle}</p>
+              <span className="rounded-full bg-ink-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fog">
+                {a.role}
+              </span>
+            </div>
+            {a.connected ? (
+              <p className="text-xs text-fog">
+                {a.followers?.toLocaleString()} followers{a.postsThisWeek != null ? ` · ${a.postsThisWeek} posts this week` : ""}
+              </p>
+            ) : (
+              <p className="text-xs text-fog">Not connected</p>
+            )}
+          </div>
+        </div>
+        <WarmupStatus state={a.warmupState} connected={a.connected} />
+      </div>
+
+      {a.warmupState === "warming" && (
+        <div className="mt-4 rounded-xl border border-line bg-ink-900/60 p-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1.5 text-violet">
+              <IconClock className="h-3.5 w-3.5" /> Warming up · day {day}/14
+            </span>
+            <span className="text-fog">{rampCapForDay(day)} auto-posts/day</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
+            <div className="h-full rounded-full bg-gradient-to-r from-violet to-brand" style={{ width: `${warmupPercent(day)}%` }} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WarmupStatus({ state, connected }: { state: Account["warmupState"]; connected: boolean }) {
+  if (!connected) {
+    return (
+      <Link href="/dashboard/onboarding" className="btn-ghost text-sm">
+        <IconLink className="h-4 w-4" /> Connect
+      </Link>
+    );
+  }
+  if (state === "warming") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-violet/15 px-3 py-1 text-xs font-semibold text-violet">
+        <span className="h-1.5 w-1.5 rounded-full bg-violet" /> Warming
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/15 px-3 py-1 text-xs font-semibold text-brand">
+      <span className="h-1.5 w-1.5 rounded-full bg-brand" /> Live
+    </span>
   );
 }

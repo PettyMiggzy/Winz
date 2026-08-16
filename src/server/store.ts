@@ -1,4 +1,5 @@
 import { getPrisma } from "@/server/db";
+import { daysSince } from "@/lib/ramp";
 import {
   clips as seedClips,
   streams as seedStreams,
@@ -128,6 +129,8 @@ export async function getAccounts(): Promise<Account[]> {
     followers: a.followers ?? undefined,
     postsThisWeek: undefined,
     role: a.role.toLowerCase() as "main" | "clips",
+    warmupState: a.warmupState.toLowerCase() as Account["warmupState"],
+    warmupDay: a.connectedAt ? daysSince(a.connectedAt) : undefined,
   }));
 }
 

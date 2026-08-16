@@ -313,9 +313,9 @@ function Pricing() {
                 "Auto clips from every stream",
                 "Captions, hooks & your branding",
                 "Post to TikTok, Shorts & Reels",
-                "2 accounts per platform",
+                "2 accounts each on TikTok & Reels · 1 YouTube",
+                "Guided account setup + safe warm-up",
                 "Copyright music safety net",
-                "Growth analytics",
               ]}
             />
           </Reveal>
@@ -331,7 +331,7 @@ function Pricing() {
               href="/signup"
               features={[
                 "Everything in Creator",
-                "4 accounts per platform",
+                "4 TikTok + 4 Reels + 2 YouTube accounts",
                 "Priority rendering queue",
                 "1080p60 · no watermark",
                 "Best-of compilation exports",

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import {
-  IconGrid, IconInbox, IconScissors, IconLink, IconChart, IconSettings,
+  IconGrid, IconInbox, IconScissors, IconLink, IconChart, IconSettings, IconBolt,
 } from "@/components/Icons";
 
 const NAV = [
@@ -12,6 +12,7 @@ const NAV = [
   { href: "/dashboard/review", label: "Review queue", Icon: IconInbox, badge: 4 },
   { href: "/dashboard/clips", label: "Clips", Icon: IconScissors },
   { href: "/dashboard/accounts", label: "Accounts", Icon: IconLink },
+  { href: "/dashboard/onboarding", label: "Account setup", Icon: IconBolt },
   { href: "/dashboard/analytics", label: "Analytics", Icon: IconChart },
   { href: "/dashboard/settings", label: "Settings", Icon: IconSettings },
 ];

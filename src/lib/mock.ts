@@ -148,6 +148,8 @@ export const streams = [
   { id: "s4", title: "Subathon day 1", date: "5 days ago", durationMin: 421, moments: 27, posted: 24 },
 ];
 
+export type WarmupState = "new" | "warming" | "ready";
+
 export interface Account {
   id: string;
   platform: Platform;
@@ -156,15 +158,17 @@ export interface Account {
   followers?: number;
   postsThisWeek?: number;
   role: "main" | "clips";
+  warmupState: WarmupState;
+  warmupDay?: number; // days into the 14-day ramp (for warming accounts)
 }
 
 export const accounts: Account[] = [
-  { id: "a1", platform: "tiktok", handle: "@winslowbankz", connected: true, followers: 18400, postsThisWeek: 14, role: "main" },
-  { id: "a2", platform: "tiktok", handle: "@winslowclips", connected: true, followers: 6200, postsThisWeek: 12, role: "clips" },
-  { id: "a3", platform: "youtube", handle: "WinslowBankz", connected: true, followers: 9100, postsThisWeek: 10, role: "main" },
-  { id: "a4", platform: "youtube", handle: "Winslow Clips", connected: false, role: "clips" },
-  { id: "a5", platform: "instagram", handle: "@winslowbankz", connected: true, followers: 5400, postsThisWeek: 9, role: "main" },
-  { id: "a6", platform: "instagram", handle: "@winslow.clips", connected: false, role: "clips" },
+  { id: "a1", platform: "tiktok", handle: "@winslowbankz", connected: true, followers: 18400, postsThisWeek: 14, role: "main", warmupState: "ready" },
+  { id: "a2", platform: "tiktok", handle: "@winslowclips", connected: true, followers: 6200, postsThisWeek: 12, role: "clips", warmupState: "ready" },
+  { id: "a3", platform: "youtube", handle: "WinslowBankz", connected: true, followers: 9100, postsThisWeek: 10, role: "main", warmupState: "ready" },
+  { id: "a4", platform: "youtube", handle: "Winslow Clips", connected: true, followers: 640, postsThisWeek: 4, role: "clips", warmupState: "warming", warmupDay: 6 },
+  { id: "a5", platform: "instagram", handle: "@winslowbankz", connected: true, followers: 5400, postsThisWeek: 9, role: "main", warmupState: "ready" },
+  { id: "a6", platform: "instagram", handle: "@winslow.clips", connected: false, role: "clips", warmupState: "new" },
 ];
 
 export const stats = {
