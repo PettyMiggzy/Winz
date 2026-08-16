@@ -142,20 +142,30 @@ export async function getStats() {
   if (!prisma) return { ...seedStats, spark: seedSpark };
 
   const weekAgo = new Date(Date.now() - 7 * 86400_000);
-  const [clipsThisWeek, posts] = await Promise.all([
+  const [clipsThisWeek, posts, scoreAgg] = await Promise.all([
     prisma.clip.count({ where: { createdAt: { gte: weekAgo } } }),
-    prisma.post.findMany({ where: { postedAt: { gte: weekAgo } }, select: { views: true } }),
+    prisma.post.findMany({ where: { postedAt: { gte: weekAgo } }, select: { views: true, postedAt: true } }),
+    prisma.clip.aggregate({ _avg: { score: true } }),
   ]);
   const viewsThisWeek = posts.reduce((s, p) => s + (p.views ?? 0), 0);
+  // Real numbers only — zeros until posting/analytics generate data. Never mix
+  // seed demo values into a configured database's dashboard.
+  const spark = Array.from({ length: 7 }, (_, i) => {
+    const dayStart = Date.now() - (6 - i) * 86400_000 - 86400_000;
+    const dayEnd = dayStart + 86400_000;
+    return posts
+      .filter((p) => p.postedAt && p.postedAt.getTime() >= dayStart && p.postedAt.getTime() < dayEnd)
+      .reduce((s, p) => s + (p.views ?? 0), 0);
+  });
   return {
     clipsThisWeek,
     viewsThisWeek,
-    viewsDeltaPct: seedStats.viewsDeltaPct,
-    profileClicks: seedStats.profileClicks,
-    newFollowers: seedStats.newFollowers,
-    avgScore: seedStats.avgScore,
-    minutesToPost: seedStats.minutesToPost,
-    spark: seedSpark,
+    viewsDeltaPct: 0,
+    profileClicks: 0,
+    newFollowers: 0,
+    avgScore: Math.round(scoreAgg._avg.score ?? 0),
+    minutesToPost: 0,
+    spark,
   };
 }
 
