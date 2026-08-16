@@ -96,7 +96,8 @@ function AccountCard({ account: a, platform: p }: { account: Account; platform: 
             </div>
             {a.connected ? (
               <p className="text-xs text-fog">
-                {a.followers?.toLocaleString()} followers{a.postsThisWeek != null ? ` · ${a.postsThisWeek} posts this week` : ""}
+                {a.followers != null ? `${a.followers.toLocaleString()} followers` : "Connected"}
+                {a.postsThisWeek != null ? ` · ${a.postsThisWeek} posts this week` : ""}
               </p>
             ) : (
               <p className="text-xs text-fog">Not connected</p>

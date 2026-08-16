@@ -1,5 +1,5 @@
 import { getPrisma } from "@/server/db";
-import { daysSince } from "@/lib/ramp";
+import { daysSince, warmupStateFor } from "@/lib/ramp";
 import {
   clips as seedClips,
   streams as seedStreams,
@@ -129,7 +129,9 @@ export async function getAccounts(): Promise<Account[]> {
     followers: a.followers ?? undefined,
     postsThisWeek: undefined,
     role: a.role.toLowerCase() as "main" | "clips",
-    warmupState: a.warmupState.toLowerCase() as Account["warmupState"],
+    // Derive the state from connectedAt so it can't drift from warmupDay — the
+    // stored enum has no code path that transitions it (WARMING→READY).
+    warmupState: a.connected ? warmupStateFor(a.connectedAt) : "new",
     warmupDay: a.connectedAt ? daysSince(a.connectedAt) : undefined,
   }));
 }
@@ -168,13 +170,14 @@ export async function recordClipDecision(
   clipId: string,
   decision: ClipDecision,
   platform?: Platform
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; notFound?: boolean }> {
   const prisma = getPrisma();
   if (!prisma) {
     // Seed mode: nothing to persist. The UI updates optimistically.
     return { ok: true };
   }
-  await prisma.clip.update({
+  // updateMany returns a count instead of throwing P2025 on a missing id.
+  const res = await prisma.clip.updateMany({
     where: { id: clipId },
     data: {
       status: decision === "approve" ? "APPROVED" : "SKIPPED",
@@ -183,6 +186,7 @@ export async function recordClipDecision(
         : undefined,
     },
   });
+  if (res.count === 0) return { ok: false, notFound: true };
   // TODO: on approve, enqueue a publish job for the worker.
   return { ok: true };
 }

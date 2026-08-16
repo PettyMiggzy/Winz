@@ -1,7 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
-const SITE = "https://winz.app";
+// Prefer the real deploy URL so OG/canonical tags don't point at a domain we
+// don't own. Set NEXT_PUBLIC_APP_URL in production; Vercel provides VERCEL_URL.
+const SITE =
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

@@ -1,7 +1,7 @@
 import { Topbar } from "@/components/dashboard/Topbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { PlatformBadge, platformLabel } from "@/components/PlatformBadge";
-import { type Platform } from "@/lib/mock";
+import { type Platform, formatCount } from "@/lib/mock";
 import { getClips, getStats } from "@/server/store";
 
 const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
@@ -9,6 +9,10 @@ const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
 export default async function AnalyticsPage() {
   const [clips, stats] = await Promise.all([getClips(), getStats()]);
   const posted = clips.filter((c) => c.status === "posted");
+  // Derive headline numbers from the actual posted clips so they can't diverge
+  // from the table below (in seed OR DB mode).
+  const totalViews = posted.reduce((s, c) => s + (c.views ?? 0), 0);
+  const avgViews = posted.length ? totalViews / posted.length : 0;
   const top = [...posted].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
 
   const perPlatform = PLATFORMS.map((p) => {
@@ -23,10 +27,10 @@ export default async function AnalyticsPage() {
       <Topbar title="Analytics" subtitle="What's working — and what Winz should clip more of." />
       <div className="space-y-8 px-5 py-6 sm:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total views" value="1.02M" delta="+34%" spark={stats.spark} />
-          <StatCard label="Avg. views / clip" value="26.9K" hint="last 30 days" />
-          <StatCard label="Profile clicks" value="12.4K" delta="+21%" />
-          <StatCard label="Follows from clips" value="3,180" hint="→ Kick + socials" />
+          <StatCard label="Total views" value={formatCount(totalViews)} delta="+34%" spark={stats.spark} />
+          <StatCard label="Avg. views / clip" value={formatCount(avgViews)} hint="posted clips" />
+          <StatCard label="Profile clicks" value={stats.profileClicks.toLocaleString()} delta="+21%" />
+          <StatCard label="Follows from clips" value={stats.newFollowers.toLocaleString()} hint="→ Kick + socials" />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">

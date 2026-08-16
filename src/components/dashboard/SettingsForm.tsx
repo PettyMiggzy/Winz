@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { ClipThumb } from "@/components/dashboard/ClipThumb";
 
-function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
     <button
       onClick={onClick}
       role="switch"
       aria-checked={on}
+      aria-label={label}
       className={`relative h-6 w-11 rounded-full transition-colors ${on ? "bg-brand" : "bg-ink-700"}`}
     >
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${on ? "translate-x-[22px]" : "translate-x-0.5"}`} />
+      {/* left-0 anchors the knob to the track's left edge — a <button> is
+          text-align:center by default, which would otherwise center it. */}
+      <span className={`absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${on ? "translate-x-[22px]" : "translate-x-0.5"}`} />
     </button>
   );
 }
@@ -43,15 +46,16 @@ export function SettingsForm() {
         <section className="card p-6">
           <h3 className="font-bold">Branding</h3>
           <p className="mt-1 text-sm text-fog">This appears on every clip, centered where no platform UI covers it.</p>
-          <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-fog">Watermark text</label>
+          <label htmlFor="wm-input" className="mt-4 block text-xs font-medium uppercase tracking-wide text-fog">Watermark text</label>
           <input
+            id="wm-input"
             value={watermark}
             onChange={(e) => setWatermark(e.target.value)}
             className="mt-2 w-full rounded-xl border border-line bg-ink-900 px-4 py-2.5 text-sm outline-none transition-colors focus:border-brand/50"
           />
           <div className="mt-4 hairline pt-2">
             <Row title="Burn in animated captions" desc="Word-by-word karaoke captions from your stream audio.">
-              <Toggle on={captions} onClick={() => setCaptions((v) => !v)} />
+              <Toggle label="Burn in animated captions" on={captions} onClick={() => setCaptions((v) => !v)} />
             </Row>
           </div>
         </section>
@@ -61,10 +65,10 @@ export function SettingsForm() {
           <h3 className="font-bold">Posting</h3>
           <div className="mt-2 divide-y divide-line">
             <Row title="Auto-post approved clips" desc="Off = clips wait in your review queue first (recommended at the start).">
-              <Toggle on={autoPost} onClick={() => setAutoPost((v) => !v)} />
+              <Toggle label="Auto-post approved clips" on={autoPost} onClick={() => setAutoPost((v) => !v)} />
             </Row>
             <Row title="Music safety net" desc="Scan every clip for claimed music and skip or strip it before posting.">
-              <Toggle on={musicGate} onClick={() => setMusicGate((v) => !v)} />
+              <Toggle label="Music safety net" on={musicGate} onClick={() => setMusicGate((v) => !v)} />
             </Row>
             <div className="py-4">
               <div className="flex items-center justify-between">
@@ -75,7 +79,7 @@ export function SettingsForm() {
                 <span className="rounded-lg bg-ink-800 px-3 py-1 text-sm font-semibold text-brand">{perDay}</span>
               </div>
               <input
-                type="range" min={1} max={6} value={perDay}
+                type="range" aria-label="Clips per account per day" min={1} max={6} value={perDay}
                 onChange={(e) => setPerDay(Number(e.target.value))}
                 className="mt-3 w-full accent-brand"
               />
@@ -89,7 +93,7 @@ export function SettingsForm() {
           <div className="mt-2 divide-y divide-line">
             {(["tiktok", "youtube", "instagram"] as const).map((p) => (
               <Row key={p} title={p === "youtube" ? "YouTube Shorts" : p === "instagram" ? "Instagram Reels" : "TikTok"} desc="Each connected account gets different clips.">
-                <Toggle on={platforms[p]} onClick={() => setPlatforms((s) => ({ ...s, [p]: !s[p] }))} />
+                <Toggle label={`Distribute to ${p}`} on={platforms[p]} onClick={() => setPlatforms((s) => ({ ...s, [p]: !s[p] }))} />
               </Row>
             ))}
           </div>

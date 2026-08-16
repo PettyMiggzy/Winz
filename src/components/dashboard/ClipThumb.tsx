@@ -13,7 +13,7 @@ export function ClipThumb({
         {score}
       </div>
       <div className="absolute right-1 top-1 rounded bg-ink-950/70 px-1.5 py-0.5 text-[10px] font-medium text-chalk backdrop-blur">
-        0:{String(duration).padStart(2, "0")}
+        {Math.floor(duration / 60)}:{String(duration % 60).padStart(2, "0")}
       </div>
       <div className="absolute inset-0 grid place-items-center">
         <div className="grid h-8 w-8 place-items-center rounded-full bg-ink-950/50 backdrop-blur">

@@ -20,18 +20,28 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
   const pending = initial.filter((c) => decisions[c.id] === "pending");
   const approved = initial.filter((c) => decisions[c.id] === "approved").length;
 
-  const set = (id: string, d: Decision) => {
-    setDecisions((prev) => ({ ...prev, [id]: d }));
+  const [failed, setFailed] = useState<Record<string, boolean>>({});
+
+  const persist = async (id: string, d: Decision) => {
     if (d === "pending") return;
-    // Persist the decision. Optimistic — the UI already moved on.
-    fetch(`/api/clips/${id}/decision`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        decision: d === "approved" ? "approve" : "skip",
-        platform: assign[id],
-      }),
-    }).catch(() => {});
+    try {
+      const res = await fetch(`/api/clips/${id}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: d === "approved" ? "approve" : "skip", platform: assign[id] }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+    } catch {
+      // Roll the clip back into the queue and flag it so the user can retry.
+      setDecisions((prev) => ({ ...prev, [id]: "pending" }));
+      setFailed((prev) => ({ ...prev, [id]: true }));
+    }
+  };
+
+  const set = (id: string, d: Decision) => {
+    setFailed((prev) => ({ ...prev, [id]: false }));
+    setDecisions((prev) => ({ ...prev, [id]: d }));
+    void persist(id, d);
   };
 
   return (
@@ -46,18 +56,17 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
         <button
           onClick={() => {
             const toApprove = initial.filter((c) => decisions[c.id] === "pending");
+            setFailed((prev) => {
+              const next = { ...prev };
+              for (const c of toApprove) next[c.id] = false;
+              return next;
+            });
             setDecisions((prev) => {
               const next = { ...prev };
               for (const c of toApprove) next[c.id] = "approved";
               return next;
             });
-            for (const c of toApprove) {
-              fetch(`/api/clips/${c.id}/decision`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ decision: "approve", platform: assign[c.id] }),
-              }).catch(() => {});
-            }
+            for (const c of toApprove) void persist(c.id, "approved");
           }}
           className="btn-primary ml-auto"
         >
@@ -100,6 +109,8 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
                     <button
                       key={p}
                       onClick={() => setAssign((prev) => ({ ...prev, [c.id]: p }))}
+                      aria-pressed={assign[c.id] === p}
+                      aria-label={`Post to ${p}`}
                       className={`grid h-8 w-8 place-items-center rounded-lg border transition-colors ${
                         assign[c.id] === p
                           ? "border-brand/50 bg-brand/10"
@@ -111,6 +122,9 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
                     </button>
                   ))}
                 </div>
+                {failed[c.id] && (
+                  <p className="mt-2 text-xs text-magenta-soft">Couldn&apos;t save — try again.</p>
+                )}
               </div>
 
               <div className="flex shrink-0 gap-2 sm:flex-col">

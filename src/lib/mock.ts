@@ -182,3 +182,10 @@ export const stats = {
 };
 
 export const viewsSpark = [12, 18, 15, 22, 28, 24, 31, 27, 35, 44, 39, 52];
+
+/** Compact number formatting for stat tiles: 512400 → "512.4K", 1020000 → "1M". */
+export function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${+(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${+(n / 1_000).toFixed(1)}K`;
+  return String(Math.round(n));
+}

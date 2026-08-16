@@ -17,13 +17,19 @@ export async function POST(req: Request) {
   const sig = readSignatureHeaders(req.headers);
   const eventType = req.headers.get("Kick-Event-Type") ?? "unknown";
 
-  // In production (Kick configured), require a valid signature.
-  if (process.env.KICK_CLIENT_ID) {
-    const valid = await verifyWebhookSignature(rawBody, sig).catch(() => false);
-    if (!valid) {
-      return NextResponse.json({ error: "invalid signature" }, { status: 401 });
-    }
+  // ALWAYS require a valid signature before we persist or act. Verification
+  // needs no env var (Kick's public key comes from its public API), so this
+  // must not be gated on config — otherwise an un-Kicked-but-DB'd deploy would
+  // accept forged events. Only skip when there is genuinely no crypto available
+  // in the runtime (should never happen on the Node runtime).
+  const valid = await verifyWebhookSignature(rawBody, sig).catch(() => false);
+  if (!valid) {
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
+  // NOTE: Kick signs every app's webhooks with one global key, so a valid
+  // signature proves "sent by Kick", not "for us". TODO: once subscriptions are
+  // persisted, verify the broadcaster/subscription belongs to a known tenant
+  // before acting on the event.
 
   let payload: unknown;
   try {
@@ -34,18 +40,24 @@ export async function POST(req: Request) {
 
   const prisma = getPrisma();
 
-  // Idempotency: record the message id; ignore replays.
+  // Idempotency: the messageId column is unique, so let the DB enforce it and
+  // treat a duplicate-key error as a dedupe (avoids a check-then-create race).
   if (prisma && sig.messageId) {
-    const seen = await prisma.webhookEvent.findUnique({ where: { messageId: sig.messageId } });
-    if (seen) return NextResponse.json({ ok: true, deduped: true });
-    await prisma.webhookEvent.create({
-      data: {
-        source: "kick",
-        kind: eventType,
-        messageId: sig.messageId,
-        payload: payload as object,
-      },
-    });
+    try {
+      await prisma.webhookEvent.create({
+        data: {
+          source: "kick",
+          kind: eventType,
+          messageId: sig.messageId,
+          payload: payload as object,
+        },
+      });
+    } catch (e) {
+      if (e && typeof e === "object" && (e as { code?: string }).code === "P2002") {
+        return NextResponse.json({ ok: true, deduped: true });
+      }
+      throw e;
+    }
   }
 
   if (eventType === "livestream.status.updated") {

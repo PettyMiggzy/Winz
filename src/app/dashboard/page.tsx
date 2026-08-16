@@ -5,6 +5,7 @@ import { ClipThumb } from "@/components/dashboard/ClipThumb";
 import { PlatformBadge } from "@/components/PlatformBadge";
 import { IconArrow, IconInbox, IconClock, IconCheck } from "@/components/Icons";
 import { getStats, getStreams, getClips } from "@/server/store";
+import { formatCount } from "@/lib/mock";
 
 export default async function Overview() {
   const [stats, streams, clips] = await Promise.all([getStats(), getStreams(), getClips()]);
@@ -36,9 +37,9 @@ export default async function Overview() {
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Clips this week" value={String(stats.clipsThisWeek)} hint="across 3 platforms" />
-          <StatCard label="Views this week" value="512.4K" delta={`+${stats.viewsDeltaPct}%`} spark={stats.spark} />
-          <StatCard label="Profile clicks" value="4,120" hint="→ your Kick channel" />
-          <StatCard label="New followers" value="1,340" delta="+18%" />
+          <StatCard label="Views this week" value={formatCount(stats.viewsThisWeek)} delta={`+${stats.viewsDeltaPct}%`} spark={stats.spark} />
+          <StatCard label="Profile clicks" value={stats.profileClicks.toLocaleString()} hint="→ your Kick channel" />
+          <StatCard label="New followers" value={stats.newFollowers.toLocaleString()} delta="+18%" />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
