@@ -1,8 +1,18 @@
 # Winz — Architecture
 
-Automated Kick stream → highlight clips → multi-platform distribution for the
-**Kick.com/WinslowBankz** channel. This design is grounded in the Aug 2026 research
-sweep in [`docs/research/`](docs/research/) — every claim below is sourced there.
+Automated Kick stream → highlight clips → multi-platform distribution. This
+design is grounded in the Aug 2026 research sweeps in
+[`docs/research/`](docs/research/) — every claim below is sourced there.
+
+> **Product note:** Winz is now a **multi-tenant SaaS** (free at launch,
+> subscription later), with **Winslow's channel as tenant #1 and the live
+> proof**. This document describes the core pipeline, which is the same for one
+> tenant or many. The multi-tenant deltas — user-initiated capture (Kick has no
+> media API), the Meta/TikTok/YouTube audit gates, legal architecture, pricing,
+> and the launch sequence — live in [`docs/STRATEGY.md`](docs/STRATEGY.md). The
+> business case (why the clip flywheel works and what transfers from the
+> Adin/N3on model) is in [`docs/BUSINESS-MODEL.md`](docs/BUSINESS-MODEL.md).
+> Build every table with `tenant_id` from day one.
 
 ## Verdict
 

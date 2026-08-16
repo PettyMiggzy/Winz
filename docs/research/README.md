@@ -30,3 +30,24 @@ Added when the project pivoted from internal tool to multi-tenant platform.
 | 16 | [saas-pricing-gtm](16-saas-pricing-gtm.md) | COGS ~$0.50–1/active user/mo → 90%+ gross margin at $10–15/mo; don't meter upload-minutes for streamers; 2–3% freemium conversion planning; watermark viral loop + recurring-commission affiliates |
 | 17 | [kick-ingestion-feasibility](17-kick-ingestion-feasibility.md) | **Decisive:** Kick's official API has no media endpoints and none are coming — compliant multi-tenant ingestion must be user-initiated (extension / OBS upload / paste URL / consented restream relay) |
 | 18 | [competitive-wedge-teardown](18-competitive-wedge-teardown.md) | Eklipse already ships the full loop (20–60 min lag, $24.99, reputation issues) — the wedge is speed + flat $10–15 pricing + Kick-first community capture, and it's time-boxed ~6 months |
+
+## Business-model sweep (2026-08-15/16)
+
+Reverse-engineering the Adin Ross / N3on clips-to-money machine and what
+transfers to a small channel. **Caveat: almost every dollar figure in this
+category is self-reported by people who profit from inflating it.** Verified
+numbers are flagged inside each doc.
+
+| # | Doc | What it covers |
+|---|-----|----------------|
+| 19 | [adin-ross-model](19-adin-ross-model.md) | His real revenue stack (gambling sponsorships, not streaming), the Stake/Kick ownership tie, what's structurally unreplicable vs the copyable clip mechanics |
+| 20 | [n3on-model](20-n3on-model.md) | The trajectory (small YouTuber → Kick via Adin), the $1.4M/303-clipper program mechanics, confirmed viewbotting, gambling as the money engine |
+| 21 | [moments-channels](21-moments-channels.md) | Official "Live"/moments second-channel model (Kai Cenat Live outgrew his main), how clip channels survive YouTube's reused-content policy, real RPMs |
+| 22 | [clipper-economy](22-clipper-economy.md) | Whop Content Rewards from the creator side, real CPMs, the bot-fraud problem, the one campaign with actual conversion data (0.02–0.09% view→click) |
+| 23 | [kick-monetization](23-kick-monetization.md) | The real earnings ladder 10→1000 CCV, the 75-CCV Partner gate, who actually makes $30–100K/mo, Nov 2025 payout repricing |
+| 24 | [clips-growth-evidence](24-clips-growth-evidence.md) | Hard funnel evidence: PirateSoftware/CaseOh/Jynxzi/Sketch case studies, why most big-clip channels see no live growth, timelines |
+| 25 | [small-scale-playbook](25-small-scale-playbook.md) | What 5–100 viewer streamers actually do, community clippers vs paid, tool stacks, cadence consensus, why paid boosts underperform |
+| 26 | [content-formats](26-content-formats.md) | Hooks, length sweet spots, karaoke captions, what converts vs just gets views, branding that doesn't hurt reach, gambling-content suppression |
+| 27 | [kick-clipping-program-ground-truth](27-kick-clipping-program-ground-truth.md) | Follow-up: the "anyone can join" Kick clipping program is real for tool access but the money is discretionary marketing for flagship talent only |
+| 28 | [clipper-payout-legal-tax-compliance](28-clipper-payout-legal-tax-compliance.md) | Follow-up: 1099/tax mechanics for a $100–500/mo clipper budget (mostly zero burden), FTC disclosure + fake-views rules, one-page clipper agreement |
+| 29 | [drama-content-sustainability](29-drama-content-sustainability.md) | Follow-up: drama flywheel is a gambling-subsidized paid operation with a ban cadence; skill/bit/personality clips out-grew and out-lasted it |
