@@ -40,12 +40,30 @@ strategy locked, build starting.
 | Unit economics | ~$0.50–1.00/user/mo cost → 90%+ margin at $10–15/mo, if the free tier is capped. |
 | Node version | **Node 24 LTS** (Vercel default; Node 20 disabled there Oct 1, 2026). |
 
+## Front end (built)
+
+The marketing site + creator dashboard is live in [`apps/web`](apps/web) —
+Next.js 15 + Tailwind, dark-first, fully responsive, running on mock data.
+Includes the landing page, pricing, FAQ, auth screens, draft legal pages
+(needed for the platform audits), and a dashboard with an interactive review
+queue, clips library, accounts, analytics, and settings.
+
+Deploy: import the repo on Vercel and set the **Root Directory to `apps/web`**
+(Node 24). Or self-host with `npm run build && npm start`. See
+[`apps/web/README.md`](apps/web/README.md).
+
+```bash
+cd apps/web && npm install && npm run dev   # http://localhost:3000
+```
+
 ## Repo layout
 
 ```
 Winz/
 ├── README.md               ← you are here
 ├── ARCHITECTURE.md         ← technical system design
+├── apps/
+│   └── web/                ← Next.js marketing site + dashboard (built)
 ├── docs/
 │   ├── STRATEGY.md         ← product strategy + build sequence
 │   ├── BUSINESS-MODEL.md   ← the Adin/N3on reality check

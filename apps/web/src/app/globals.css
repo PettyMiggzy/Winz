@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+@keyframes fade-up {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-ink-950 text-chalk antialiased;
+  background-image:
+    radial-gradient(60rem 40rem at 85% -10%, rgba(25, 229, 127, 0.08), transparent 60%),
+    radial-gradient(50rem 40rem at 10% 10%, rgba(255, 61, 129, 0.06), transparent 55%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(25, 229, 127, 0.28);
+  color: #fff;
+}
+
+/* Thin, on-brand scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a36 transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: #23232d;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: #30303c; background-clip: content-box; }
+
+@layer components {
+  .container-x {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/60;
+  }
+  .btn-primary {
+    @apply btn bg-brand text-ink-950 hover:bg-brand-soft hover:shadow-glow active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply btn border border-line bg-ink-800/60 text-chalk hover:border-brand/40 hover:bg-ink-750;
+  }
+  .btn-dim {
+    @apply btn text-fog hover:text-chalk;
+  }
+
+  .card {
+    @apply rounded-2xl border border-line bg-ink-850/80 shadow-card backdrop-blur-sm;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-ink-800/70 px-3 py-1 text-xs font-medium text-fog;
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.2em] text-brand;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand via-brand-soft to-magenta bg-clip-text text-transparent;
+  }
+
+  .hairline {
+    @apply border-t border-line;
+  }
+
+  .reveal {
+    animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .animate-float,
+  .animate-fade-up {
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 75%);
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 75%);
+  }
+}
