@@ -31,6 +31,8 @@ enum WarmupState {
 
 enum StreamStatus {
   LIVE
+  UPLOADING // source upload in progress
+  QUEUED // ready for the worker to pick up
   PROCESSING
   DONE
   FAILED

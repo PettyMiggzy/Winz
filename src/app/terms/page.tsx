@@ -8,7 +8,7 @@ const sections: LegalSection[] = [
     h: "The service",
     body: (
       <p>
-        Winz (&ldquo;Winz&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is a tool that helps creators turn their
+        WinClipz (&ldquo;WinClipz&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;) is a tool that helps creators turn their
         own livestreams into short clips and publish them to social accounts the
         creator connects. You (&ldquo;you&rdquo;, the &ldquo;user&rdquo;) use the service subject to
         these Terms.
@@ -20,7 +20,7 @@ const sections: LegalSection[] = [
     body: (
       <p>
         You must be at least 18 years old (or the age of majority where you live)
-        to use Winz. By using the service you represent that you meet this
+        to use WinClipz. By using the service you represent that you meet this
         requirement and that the information you give us is accurate.
       </p>
     ),
@@ -31,7 +31,7 @@ const sections: LegalSection[] = [
       <>
         <p>
           You keep ownership of the streams, clips, and other material you upload
-          or connect (&ldquo;Your Content&rdquo;). You grant Winz a limited, non-exclusive
+          or connect (&ldquo;Your Content&rdquo;). You grant WinClipz a limited, non-exclusive
           license to store, process, transcode, edit, and transmit Your Content
           solely to provide the service to you — including detecting highlights,
           generating captions and clips, and publishing to accounts you connect.
@@ -42,7 +42,7 @@ const sections: LegalSection[] = [
           that it does not infringe anyone else&rsquo;s rights.
         </p>
         <p>
-          Winz is designed for creators to distribute their <em>own</em> content.
+          WinClipz is designed for creators to distribute their <em>own</em> content.
           Do not use it to process or repost streams, videos, music, or other
           material you do not have the right to use.
         </p>
@@ -54,7 +54,7 @@ const sections: LegalSection[] = [
     body: (
       <p>
         You connect third-party accounts (such as TikTok, YouTube, and Instagram)
-        through those platforms&rsquo; official authorization flows. You authorize Winz
+        through those platforms&rsquo; official authorization flows. You authorize WinClipz
         to publish content to those accounts on your behalf according to your
         settings. Your use of each platform remains subject to that platform&rsquo;s own
         terms, and you are responsible for complying with them. You can disconnect
@@ -67,7 +67,7 @@ const sections: LegalSection[] = [
     body: (
       <p>
         Clips generated from your streams may contain music or other third-party
-        material captured in your broadcast. Winz provides tools to detect and
+        material captured in your broadcast. WinClipz provides tools to detect and
         remove flagged audio, but does not guarantee that any clip is free of
         third-party claims. You are solely responsible for the audio and visual
         content of clips you publish and for any resulting claims, strikes, mutes,
@@ -79,7 +79,7 @@ const sections: LegalSection[] = [
     h: "Acceptable use",
     body: (
       <>
-        <p>You agree not to use Winz to:</p>
+        <p>You agree not to use WinClipz to:</p>
         <ul className="list-disc space-y-1 pl-6">
           <li>process or distribute content you don&rsquo;t have the rights to;</li>
           <li>impersonate anyone or misrepresent your affiliation;</li>
@@ -107,7 +107,7 @@ const sections: LegalSection[] = [
     h: "Beta service",
     body: (
       <p>
-        Winz is currently offered as a free beta. It is provided &ldquo;as is,&rdquo; may
+        WinClipz is currently offered as a free beta. It is provided &ldquo;as is,&rdquo; may
         change or be discontinued, and may contain errors. Features, limits, and
         pricing may change. We may introduce paid plans in the future; where we
         say so, early users may receive founding-creator pricing.
@@ -118,7 +118,7 @@ const sections: LegalSection[] = [
     h: "Disclaimers",
     body: (
       <p>
-        Winz does not guarantee any particular growth, views, followers, revenue,
+        WinClipz does not guarantee any particular growth, views, followers, revenue,
         or results. To the fullest extent permitted by law, the service is
         provided without warranties of any kind, express or implied.
       </p>
@@ -128,7 +128,7 @@ const sections: LegalSection[] = [
     h: "Limitation of liability",
     body: (
       <p>
-        To the fullest extent permitted by law, Winz and its operators will not be
+        To the fullest extent permitted by law, WinClipz and its operators will not be
         liable for any indirect, incidental, special, consequential, or punitive
         damages, or for lost profits, revenues, data, or goodwill, arising out of
         or related to your use of the service.
@@ -139,7 +139,7 @@ const sections: LegalSection[] = [
     h: "Indemnification",
     body: (
       <p>
-        You agree to indemnify and hold Winz harmless from claims, damages, and
+        You agree to indemnify and hold WinClipz harmless from claims, damages, and
         expenses (including reasonable legal fees) arising from Your Content, your
         use of the service, or your violation of these Terms or any third-party
         rights.
@@ -165,7 +165,7 @@ export default function TermsPage() {
       updated="August 16, 2026"
       intro={
         <p>
-          These Terms govern your use of Winz. Please read them carefully. By
+          These Terms govern your use of WinClipz. Please read them carefully. By
           creating an account or using the service, you agree to them.
         </p>
       }

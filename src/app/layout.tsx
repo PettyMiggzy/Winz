@@ -10,11 +10,11 @@ const SITE =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
   title: {
-    default: "Winz — Turn your streams into clips that grow your channel",
-    template: "%s · Winz",
+    default: "WinClipz — Turn your streams into clips that grow your channel",
+    template: "%s · WinClipz",
   },
   description:
-    "Winz turns every livestream into branded vertical clips and posts them to TikTok, YouTube Shorts, and Instagram Reels automatically — so every viral moment drives viewers back to your channel.",
+    "WinClipz turns every livestream into branded vertical clips and posts them to TikTok, YouTube Shorts, and Instagram Reels automatically — so every viral moment drives viewers back to your channel.",
   keywords: [
     "kick clips", "stream clips", "auto clipping", "tiktok automation",
     "youtube shorts", "instagram reels", "streamer growth", "clip distribution",
@@ -22,14 +22,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: SITE,
-    title: "Winz — Turn your streams into clips that grow your channel",
+    title: "WinClipz — Turn your streams into clips that grow your channel",
     description:
-      "Automatic highlight clips from your streams, branded and posted everywhere. Focus on going live — Winz handles the rest.",
-    images: [{ url: "/generated/og.webp", width: 1216, height: 640, alt: "Winz" }],
+      "Automatic highlight clips from your streams, branded and posted everywhere. Focus on going live — WinClipz handles the rest.",
+    images: [{ url: "/generated/og.webp", width: 1216, height: 640, alt: "WinClipz" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Winz — clips that grow your channel",
+    title: "WinClipz — clips that grow your channel",
     description:
       "Automatic highlight clips from your streams, branded and posted everywhere.",
     images: ["/generated/og.webp"],

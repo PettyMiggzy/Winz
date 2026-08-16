@@ -61,7 +61,7 @@ const manifest = await processVideo('/tmp/upload.mp4', '/tmp/out', {
 // manifest.clips: [{ file, title, caption, hashtags, score, category, start, end, reason }]
 ```
 
-## Wiring into Winz (Next.js on Vercel)
+## Wiring into WinClipz (Next.js on Vercel)
 
 Vercel functions can't run this — 4.5 MB body limit, no long-running ffmpeg. The standard shape:
 

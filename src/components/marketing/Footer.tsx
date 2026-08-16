@@ -32,9 +32,9 @@ export function Footer() {
           </div>
         </div>
         <div className="hairline mt-10 flex flex-col gap-3 pt-6 text-xs text-fog sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} Winz. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} WinClipz. All rights reserved.</p>
           <p className="max-w-xl sm:text-right">
-            Winz distributes your own content to your own connected accounts.
+            WinClipz distributes your own content to your own connected accounts.
             You are responsible for the rights to what you upload.
           </p>
         </div>

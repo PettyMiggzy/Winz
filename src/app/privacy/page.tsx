@@ -12,7 +12,7 @@ const sections: LegalSection[] = [
         <ul className="list-disc space-y-1 pl-6">
           <li><strong className="text-chalk">Account info</strong> — your email and login details.</li>
           <li><strong className="text-chalk">Connected-platform data</strong> — access tokens and basic profile/account info for the accounts you connect (e.g. TikTok, YouTube, Instagram, Kick), so we can publish on your behalf.</li>
-          <li><strong className="text-chalk">Your content</strong> — the streams, recordings, and clips you upload or capture through Winz, plus derived data like transcripts and highlight scores.</li>
+          <li><strong className="text-chalk">Your content</strong> — the streams, recordings, and clips you upload or capture through WinClipz, plus derived data like transcripts and highlight scores.</li>
           <li><strong className="text-chalk">Usage data</strong> — how you use the dashboard, and post performance metrics we retrieve from connected platforms.</li>
         </ul>
       </>
@@ -42,7 +42,7 @@ const sections: LegalSection[] = [
       <p>
         When you connect a platform, we access only the permissions you grant
         through that platform&rsquo;s official authorization. We use that access solely
-        to provide Winz&rsquo;s features (for example, publishing a clip or reading a
+        to provide WinClipz&rsquo;s features (for example, publishing a clip or reading a
         post&rsquo;s view count). Our use of information from Google APIs adheres to the
         Google API Services User Data Policy, including the Limited Use
         requirements, and our use of Meta and TikTok platform data adheres to
@@ -54,7 +54,7 @@ const sections: LegalSection[] = [
     h: "Sharing",
     body: (
       <p>
-        We share data only with service providers that help us operate Winz (such
+        We share data only with service providers that help us operate WinClipz (such
         as hosting, storage, transcription, and analytics providers), under
         confidentiality obligations, and with the platforms you publish to. We may
         disclose information if required by law.
@@ -78,7 +78,7 @@ const sections: LegalSection[] = [
       <p>
         You can access, correct, export, or delete your information from your
         account settings or by contacting us. Disconnecting a platform revokes
-        Winz&rsquo;s access to it. Depending on where you live, you may have additional
+        WinClipz&rsquo;s access to it. Depending on where you live, you may have additional
         rights under laws such as the GDPR or CCPA.
       </p>
     ),
@@ -99,7 +99,7 @@ const sections: LegalSection[] = [
     h: "Children",
     body: (
       <p>
-        Winz is not directed to children. You must be 18 or older to use it, and we
+        WinClipz is not directed to children. You must be 18 or older to use it, and we
         do not knowingly collect information from anyone under 13.
       </p>
     ),
@@ -123,7 +123,7 @@ export default function PrivacyPage() {
       updated="August 16, 2026"
       intro={
         <p>
-          This policy explains what Winz collects, how we use it, and the choices
+          This policy explains what WinClipz collects, how we use it, and the choices
           you have. We try to keep it plain and short.
         </p>
       }

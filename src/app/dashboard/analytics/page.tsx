@@ -24,7 +24,7 @@ export default async function AnalyticsPage() {
 
   return (
     <>
-      <Topbar title="Analytics" subtitle="What's working — and what Winz should clip more of." />
+      <Topbar title="Analytics" subtitle="What's working — and what WinClipz should clip more of." />
       <div className="space-y-8 px-5 py-6 sm:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Total views" value={formatCount(totalViews)} delta="+34%" spark={stats.spark} />
@@ -57,9 +57,9 @@ export default async function AnalyticsPage() {
           </div>
 
           <div className="card p-5">
-            <h3 className="mb-5 font-bold">What Winz learned this week</h3>
+            <h3 className="mb-5 font-bold">What WinClipz learned this week</h3>
             <ul className="space-y-3 text-sm">
-              <Insight tint="text-brand" text="Chat-spike clips outperformed audio-only clips by 2.3× views. Winz is weighting chat velocity higher." />
+              <Insight tint="text-brand" text="Chat-spike clips outperformed audio-only clips by 2.3× views. WinClipz is weighting chat velocity higher." />
               <Insight tint="text-magenta-soft" text="Clips under 22s held ~18% more watch time. Cutting tighter by default." />
               <Insight tint="text-violet" text="Hooks phrased as a question drove more profile clicks. Prioritizing question hooks." />
             </ul>

@@ -24,13 +24,13 @@ export function AuthShell({
             <p className="mt-2 text-sm text-fog">
               {mode === "signup"
                 ? "Free during beta — no card required."
-                : "Sign in to your Winz dashboard."}
+                : "Sign in to your WinClipz dashboard."}
             </p>
             {children}
           </div>
         </div>
         <p className="text-center text-xs text-fog">
-          {mode === "signup" ? "Already have an account? " : "New to Winz? "}
+          {mode === "signup" ? "Already have an account? " : "New to WinClipz? "}
           <Link href={mode === "signup" ? "/login" : "/signup"} className="font-semibold text-brand hover:underline">
             {mode === "signup" ? "Sign in" : "Create one"}
           </Link>

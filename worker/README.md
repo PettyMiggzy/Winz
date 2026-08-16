@@ -1,4 +1,4 @@
-# Winz — Worker (the clip engine)
+# WinClipz — Worker (the clip engine)
 
 Turns a recorded stream or an uploaded video into ranked, titled, captioned
 9:16 clips. **Runs on your own server / a VPS, not Vercel** — it needs FFmpeg,
@@ -48,7 +48,7 @@ node --experimental-strip-types engine/cli.ts input.mp4 ./out --style "Kick gami
 ```
 
 `processVideo(input, outDir, opts)` writes each clip plus a `manifest.json` the
-Winz dashboard renders directly. ~$0.03–0.06 per 30-min upload vs ~$2.90 through
+WinClipz dashboard renders directly. ~$0.03–0.06 per 30-min upload vs ~$2.90 through
 OpusClip.
 
 ## Notes

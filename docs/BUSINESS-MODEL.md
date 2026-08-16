@@ -79,7 +79,7 @@ the single most important reality to internalize:
 **Winslow's structural advantage: he owns the footage.** The single biggest
 thing that kills third-party clip channels — copyright strikes and
 demonetization — mostly doesn't apply when you're clipping your own stream.
-That's a real edge, and it's exactly why Winz-as-a-product is defensible.
+That's a real edge, and it's exactly why WinClipz-as-a-product is defensible.
 
 ## The scaled-down playbook (what to actually do)
 
@@ -116,10 +116,10 @@ This is the model, sized for a real small channel:
    biggest income step-change available to a small channel — it's what turns
    on the hourly program money. Everything above is in service of crossing it.
 
-## How this feeds the Winz product
+## How this feeds the WinClipz product
 
 This is why the business-model research matters for the SaaS, not just for
-Winslow: **the product is the scaled-down playbook, automated.** Winz sells
+Winslow: **the product is the scaled-down playbook, automated.** WinClipz sells
 the exact workflow that works for small channels — own-footage clipping,
 per-account differentiation, branding, karaoke captions, the moments-channel
 funnel, format craft baked into the AI — to the thousands of small Kick/Twitch

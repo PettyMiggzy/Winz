@@ -21,7 +21,7 @@ export default async function AccountsPage({
     <>
       <Topbar
         title="Accounts"
-        subtitle="Connect the accounts Winz posts to. Different clips go to each — never the same clip twice."
+        subtitle="Connect the accounts WinClipz posts to. Different clips go to each — never the same clip twice."
       />
       <div className="space-y-8 px-5 py-6 sm:px-8">
         {sp.connected && (
@@ -44,7 +44,7 @@ export default async function AccountsPage({
             <p className="max-w-2xl text-sm text-fog">
               <span className="font-semibold text-chalk">New accounts need a safe setup.</span>{" "}
               Create them on your phone (home wifi, spaced out), warm them up, then
-              connect. Winz then ramps posting slowly so nothing gets flagged.
+              connect. WinClipz then ramps posting slowly so nothing gets flagged.
             </p>
           </div>
           <Link href="/dashboard/onboarding" className="btn-primary shrink-0">
@@ -85,7 +85,7 @@ export default async function AccountsPage({
         })}
 
         <p className="text-xs text-fog">
-          Connecting uses each platform&apos;s official login. Winz never sees or
+          Connecting uses each platform&apos;s official login. WinClipz never sees or
           stores your password, and you can disconnect any account at any time.
         </p>
       </div>

@@ -1,6 +1,6 @@
-# Winz — Web (marketing site + dashboard)
+# WinClipz — Web (marketing site + dashboard)
 
-The Next.js front end for Winz: the public marketing site, legal pages, auth
+The Next.js front end for WinClipz: the public marketing site, legal pages, auth
 screens, and the creator dashboard (currently running on mock data).
 
 - **Framework:** Next.js 15 (App Router) · React 19 · TypeScript

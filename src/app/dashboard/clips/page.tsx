@@ -16,7 +16,7 @@ export default async function ClipsPage() {
   const clips = await getClips();
   return (
     <>
-      <Topbar title="Clips" subtitle="Every clip Winz has cut from your streams." />
+      <Topbar title="Clips" subtitle="Every clip WinClipz has cut from your streams." />
       <div className="px-5 py-6 sm:px-8">
         <div className="mb-5 flex flex-wrap gap-2">
           {["All", "Posted", "Scheduled", "In review", "Skipped"].map((f, i) => (

@@ -58,13 +58,13 @@ function Hero() {
           <Reveal delay={80}>
             <h1 className="mt-5 text-balance text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
               Your streams are full of{" "}
-              <span className="gradient-text">viral moments.</span> Winz posts
+              <span className="gradient-text">viral moments.</span> WinClipz posts
               them everywhere for you.
             </h1>
           </Reveal>
           <Reveal delay={160}>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-fog">
-              Go live. The second you end, Winz finds your best moments, cuts
+              Go live. The second you end, WinClipz finds your best moments, cuts
               them into branded vertical clips with captions, and posts them to
               TikTok, YouTube Shorts, and Instagram Reels — each one driving
               viewers back to your channel.
@@ -127,8 +127,8 @@ function TrustBar() {
 
 /* ------------------------------------------------------------ HowItWorks */
 const STEPS = [
-  { n: "01", t: "You go live", d: "Stream on Kick like you always do. Winz captures your broadcast in the background — no extra software to babysit.", Icon: IconBolt },
-  { n: "02", t: "AI finds the moments", d: "The second you end, Winz scores your stream on audio spikes, chat velocity, and what was actually said — and pulls the clips worth posting.", Icon: IconScissors },
+  { n: "01", t: "You go live", d: "Stream on Kick like you always do. WinClipz captures your broadcast in the background — no extra software to babysit.", Icon: IconBolt },
+  { n: "02", t: "AI finds the moments", d: "The second you end, WinClipz scores your stream on audio spikes, chat velocity, and what was actually said — and pulls the clips worth posting.", Icon: IconScissors },
   { n: "03", t: "It brands & captions", d: "Each clip gets a vertical crop, animated captions, a catchy hook title, and your channel link front and center.", Icon: IconBrand },
   { n: "04", t: "It posts everywhere", d: "Different clips go to each of your accounts on TikTok, Shorts, and Reels — on a schedule that looks human, not botted.", Icon: IconShuffle },
 ];
@@ -140,7 +140,7 @@ function HowItWorks() {
         <SectionHead
           eyebrow="How it works"
           title="From live to viral while you sleep"
-          sub="Four steps, zero editing. You focus on the stream — Winz runs the whole clip machine."
+          sub="Four steps, zero editing. You focus on the stream — WinClipz runs the whole clip machine."
         />
         <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s, i) => (
@@ -182,7 +182,7 @@ function Anatomy() {
             align="left"
             eyebrow="Built to convert"
             title="Every clip is engineered to send viewers to you"
-            sub="It's not enough to go viral — the clip has to make people follow. Winz builds each one to do exactly that."
+            sub="It's not enough to go viral — the clip has to make people follow. WinClipz builds each one to do exactly that."
           />
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {points.map((p, i) => (
@@ -210,9 +210,9 @@ const FEATURES = [
   { Icon: IconScissors, t: "Smart highlight detection", d: "Three signals — audio energy, chat velocity, and transcript scoring — combine to find the moments that actually pop, not random cuts." },
   { Icon: IconCaptions, t: "Auto captions & hooks", d: "Animated word-by-word captions and AI-written hook titles tuned for each platform's first-second scroll test." },
   { Icon: IconBrand, t: "Your branding, baked in", d: "Channel watermark, colors, and handle on every clip — placed in the safe zone so it's never cropped or covered." },
-  { Icon: IconShuffle, t: "Different clips per account", d: "Platforms bury duplicate videos. Winz sends a different clip to each account, with unique hooks and human-jittered timing." },
+  { Icon: IconShuffle, t: "Different clips per account", d: "Platforms bury duplicate videos. WinClipz sends a different clip to each account, with unique hooks and human-jittered timing." },
   { Icon: IconMusicOff, t: "Copyright safety net", d: "Every clip is checked for claimed music before it posts — flagged moments are skipped or stripped, so your accounts stay alive." },
-  { Icon: IconChart, t: "Growth analytics", d: "See which clips drove views, profile clicks, and follows — and Winz gets smarter about what to clip next." },
+  { Icon: IconChart, t: "Growth analytics", d: "See which clips drove views, profile clicks, and follows — and WinClipz gets smarter about what to clip next." },
 ];
 
 function Features() {
@@ -260,7 +260,7 @@ function Proof() {
               <p className="mt-5 text-fog">
                 Creators like Adin Ross and N3on grew on an army of clippers
                 flooding short-form with their best moments. That machine costs
-                six figures a month and a thousand people. Winz gives you the
+                six figures a month and a thousand people. WinClipz gives you the
                 same flywheel — your own footage, your own branding — for the
                 price of a couple of emotes.
               </p>
@@ -282,7 +282,7 @@ function Proof() {
           </div>
         </div>
         <p className="mt-4 text-center text-xs text-fog">
-          Winz grows channels through consistent short-form distribution. It is
+          WinClipz grows channels through consistent short-form distribution. It is
           not a get-rich promise — results depend on your content and consistency.
         </p>
       </div>
@@ -351,10 +351,10 @@ function Pricing() {
 /* ------------------------------------------------------------------- FAQ */
 const FAQS = [
   { q: "Do I need to give you my passwords?", a: "Never. You connect each account through the platform's official login (OAuth). You can disconnect any time, and we only ever post to accounts you connect yourself." },
-  { q: "Is this against TikTok / YouTube / Instagram rules?", a: "No — posting your own content to your own accounts through the official APIs is exactly what tools like Buffer and Later do. Winz sends different clips to each account and spaces them out, which is what keeps reach healthy." },
+  { q: "Is this against TikTok / YouTube / Instagram rules?", a: "No — posting your own content to your own accounts through the official APIs is exactly what tools like Buffer and Later do. WinClipz sends different clips to each account and spaces them out, which is what keeps reach healthy." },
   { q: "What about copyrighted music in my streams?", a: "Every clip is scanned for claimed music before it posts. Flagged moments are skipped or have the music stripped, so you don't rack up strikes on your accounts." },
-  { q: "How do you get my Kick stream?", a: "Kick doesn't offer a public download API, so Winz captures your own broadcast at the source — a lightweight recorder or upload you control. It's higher quality than scraping and keeps everything above board." },
-  { q: "Do clips really bring viewers back?", a: "Short-form is how small channels get discovered in 2026 — every clip carries your channel name and link. It's a months-long game of consistency, and Winz makes consistency automatic." },
+  { q: "How do you get my Kick stream?", a: "Kick doesn't offer a public download API, so WinClipz captures your own broadcast at the source — a lightweight recorder or upload you control. It's higher quality than scraping and keeps everything above board." },
+  { q: "Do clips really bring viewers back?", a: "Short-form is how small channels get discovered in 2026 — every clip carries your channel name and link. It's a months-long game of consistency, and WinClipz makes consistency automatic." },
   { q: "When does it cost money?", a: "It's free during the beta. When we introduce paid plans, anyone who joined early keeps founding-creator pricing." },
 ];
 
@@ -394,7 +394,7 @@ function FinalCTA() {
             Go live tonight. Wake up to clips everywhere.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-fog">
-            Join the beta free and let Winz turn your next stream into a week of
+            Join the beta free and let WinClipz turn your next stream into a week of
             content.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">

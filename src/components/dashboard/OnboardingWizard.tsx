@@ -117,16 +117,16 @@ export function OnboardingWizard() {
               "After ~1 week of this, the account is ready to connect.",
             ]} />
             <Callout tone="brand">
-              Once connected, Winz keeps warming automatically — it starts slow and
+              Once connected, WinClipz keeps warming automatically — it starts slow and
               speeds up over two weeks (next step), so you don&apos;t have to think about it.
             </Callout>
           </Panel>
         )}
 
         {step === 3 && (
-          <Panel title="Connect & go hands-free" intro="Connect each warmed account with its official login. Winz never sees or stores your password — just an access token you can revoke anytime.">
+          <Panel title="Connect & go hands-free" intro="Connect each warmed account with its official login. WinClipz never sees or stores your password — just an access token you can revoke anytime.">
             <div className="rounded-xl border border-line bg-ink-900/60 p-4">
-              <p className="flex items-center gap-2 text-sm font-semibold"><IconClock className="h-4 w-4 text-brand" /> How Winz ramps posting</p>
+              <p className="flex items-center gap-2 text-sm font-semibold"><IconClock className="h-4 w-4 text-brand" /> How WinClipz ramps posting</p>
               <ul className="mt-3 space-y-2">
                 {WARMUP_STEPS.map((w) => (
                   <li key={w.day} className="flex items-center gap-3 text-sm">
@@ -142,7 +142,7 @@ export function OnboardingWizard() {
               <a href="/api/auth/instagram/start" className="btn-ghost"><PlatformBadge platform="instagram" /> Connect Instagram</a>
               <button className="btn-ghost" disabled title="Coming soon"><PlatformBadge platform="youtube" /> Connect YouTube</button>
             </div>
-            <p className="text-xs text-fog">Then just go live — Winz clips, brands, and posts on the ramp above.</p>
+            <p className="text-xs text-fog">Then just go live — WinClipz clips, brands, and posts on the ramp above.</p>
           </Panel>
         )}
 

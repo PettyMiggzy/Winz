@@ -39,7 +39,7 @@ export function Logo({
       <Mark className="h-8 w-8" />
       {!compact && (
         <span className="text-lg font-extrabold tracking-tight text-chalk">
-          Winz<span className="text-brand">.</span>
+          Win<span className="text-brand">Clipz</span>
         </span>
       )}
     </span>

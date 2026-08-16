@@ -25,7 +25,7 @@ export default async function Overview() {
             </span>
             <div>
               <p className="font-semibold">You&apos;re live — “Warzone ranked grind”</p>
-              <p className="text-sm text-fog">Winz is capturing. Clips will be ready minutes after you end.</p>
+              <p className="text-sm text-fog">WinClipz is capturing. Clips will be ready minutes after you end.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -52,7 +52,7 @@ export default async function Overview() {
                 </span>
                 <div>
                   <p className="font-semibold">{reviewCount} clips waiting for review</p>
-                  <p className="text-sm text-fog">Approve them and Winz posts on schedule.</p>
+                  <p className="text-sm text-fog">Approve them and WinClipz posts on schedule.</p>
                 </div>
               </div>
               <Link href="/dashboard/review" className="btn-primary">

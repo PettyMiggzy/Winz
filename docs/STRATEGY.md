@@ -1,14 +1,14 @@
-# Winz — Product Strategy
+# WinClipz — Product Strategy
 
-What Winz is, why it can win, and the order to build it. Synthesizes all three
+What WinClipz is, why it can win, and the order to build it. Synthesizes all three
 research sweeps ([docs/research/](research/)). Read
 [`BUSINESS-MODEL.md`](BUSINESS-MODEL.md) for the "why clips work" reasoning and
 [`../ARCHITECTURE.md`](../ARCHITECTURE.md) for the technical build.
 
-## What Winz is
+## What WinClipz is
 
 A SaaS that automates the small-streamer clip flywheel: a streamer connects
-once, and after each stream Winz turns their best moments into branded, vertical,
+once, and after each stream WinClipz turns their best moments into branded, vertical,
 captioned clips and distributes them across TikTok, YouTube Shorts, and
 Instagram Reels — with the streamer's channel link on every clip driving viewers
 back. **Free at launch, monthly subscription later.**
@@ -24,10 +24,10 @@ auto-clip → auto-post loop. But there's a real, narrow, **time-boxed (~6 month
 opening:
 
 1. **Speed.** Eklipse waits for Kick's VOD (clips land 20–60 min after stream
-   end). Winz captures live and posts within minutes.
+   end). WinClipz captures live and posts within minutes.
 2. **Price + simplicity.** Eklipse gates Kick behind ~$24.99/mo and has a pile
    of billing/quality complaints (Trustpilot 4.2, recurring "cut off the best
-   moment" and surprise-charge reviews). Winz: flat $10–15/mo, Kick in the base
+   moment" and surprise-charge reviews). WinClipz: flat $10–15/mo, Kick in the base
    tier, no credits, no add-ons.
 3. **Kick-first + tri-platform autopilot.** True zero-touch to all three
    platforms with per-account differentiation, aimed at the Kick community
@@ -46,22 +46,22 @@ The most important technical finding across all sweeps:
 Every auto-Kick tool (Eklipse included) gets video by scraping undocumented,
 Cloudflare-fenced endpoints — which for a *multi-tenant product* means:
 
-- Winz's servers making the infringing copy (no DMCA safe harbor for that step)
+- WinClipz's servers making the infringing copy (no DMCA safe harbor for that step)
 - Bundling Cloudflare-bypass into a customer feature → potential DMCA §1201
   "trafficking" liability (no safe harbor, $200–2,500 per act, 20+ such suits
   filed by mid-2026)
 - A technically fragile scraper that broke yt-dlp repeatedly in 2026
 
-**So Winz is upload-first / capture-at-source, by design:**
+**So WinClipz is upload-first / capture-at-source, by design:**
 1. **Browser extension** records the streamer's own authenticated Kick session
-   (no proxy fight, no Winz-owned infringing copy) — *primary path*
+   (no proxy fight, no WinClipz-owned infringing copy) — *primary path*
 2. **OBS / local-recording upload** (watch-folder) — highest quality
 3. **Paste-your-own-VOD/clip-URL** — lowest friction, user-initiated
 4. **Consented RTMP restream relay** via `streamkey:read` — higher fidelity,
    higher friction
 
 This reshapes onboarding (it's not pure "connect and forget") and is *the*
-central product tradeoff. It's also what keeps Winz on the right side of the
+central product tradeoff. It's also what keeps WinClipz on the right side of the
 law that competitors are quietly gambling on.
 
 ## Unit economics (why the free tier is survivable — if capped)

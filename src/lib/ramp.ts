@@ -2,7 +2,7 @@
  * Account warm-up + posting-ramp policy.
  *
  * The risk with new social accounts is in creation and early activity, not in
- * API posting itself. So once an account is connected, Winz ramps posting up
+ * API posting itself. So once an account is connected, WinClipz ramps posting up
  * slowly instead of blasting from day one — this mirrors safe human behavior
  * and protects the account. Creation/warm-up happens on the user's own phone;
  * this policy governs how fast the automation is allowed to post afterward.
@@ -45,7 +45,7 @@ export function warmupStateFor(connectedAt: Date | string | null | undefined, no
 }
 
 export const WARMUP_STEPS: { day: string; label: string }[] = [
-  { day: "Day 0", label: "Connect the account to Winz" },
+  { day: "Day 0", label: "Connect the account to WinClipz" },
   { day: "Days 1–3", label: "1 auto-post/day — easing in" },
   { day: "Days 4–7", label: "2 auto-posts/day" },
   { day: "Days 8–14", label: "3 auto-posts/day" },

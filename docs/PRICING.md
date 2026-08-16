@@ -1,4 +1,4 @@
-# Winz — Pricing & Packaging
+# WinClipz — Pricing & Packaging
 
 Source of truth for tiers. Grounded in the pricing/GTM and platform-policy
 research ([docs/research/16](research/16-saas-pricing-gtm.md),
@@ -8,7 +8,7 @@ research ([docs/research/16](research/16-saas-pricing-gtm.md),
 ## Principle: meter accounts + automation + quality, never upload-minutes
 
 Metering source-minutes (OpusClip's model) punishes streamers — a single
-3-hour VOD burns ~180 "credits." Winz meters what actually scales value:
+3-hour VOD burns ~180 "credits." WinClipz meters what actually scales value:
 **how many accounts** you distribute to, **how much automation** (cadence,
 auto-post), and **output quality** (resolution, compilations, A/B). COGS is
 only ~$0.50–1.00 per active user/mo, so margins stay ~90% across the ladder.
@@ -64,13 +64,13 @@ API **posting** afterward is normal from the cloud. So the product:
 A higher tier unlocks **account slots + the guided ramp** for them — not an
 instant switch.
 
-## What Winz never sells
+## What WinClipz never sells
 
 - Pre-made / aged / phone-verified accounts.
 - Proxy or anti-detect-browser setups.
 - View boosts or any engagement inflation.
 
-These are what get customers banned and would make Winz liable for a
+These are what get customers banned and would make WinClipz liable for a
 coordinated-inauthentic pattern. The product creates nothing on a user's behalf;
 it guides safe setup and automates posting to accounts the user connects.
 
@@ -79,7 +79,7 @@ it guides safe setup and automates posting to accounts the user connects.
 Big streamers (Adin Ross, N3on) don't warm up their own accounts — they pay
 ~1,000 clippers who post from their *own* already-aged accounts (see
 [docs/research/22](research/22-clipper-economy.md),
-[27](research/27-kick-clipping-program-ground-truth.md)). A future Winz
+[27](research/27-kick-clipping-program-ground-truth.md)). A future WinClipz
 "clipper mode" could let a creator approve outside clippers to pull their best
 clips and post from their own accounts — sidestepping warm-up entirely and
-scaling reach the way the big networks do, without Winz creating any accounts.
+scaling reach the way the big networks do, without WinClipz creating any accounts.

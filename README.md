@@ -1,4 +1,4 @@
-# Winz
+# WinClipz
 
 **A SaaS that grows streamers the way the big Kick creators grew — automatically.**
 
@@ -15,7 +15,7 @@ demo that sells the product.
 **Research phase complete** (Aug 2026). Three deep sweeps done, architecture and
 strategy locked, build starting.
 
-- 🧭 **[docs/STRATEGY.md](docs/STRATEGY.md)** — what Winz is, the wedge, unit
+- 🧭 **[docs/STRATEGY.md](docs/STRATEGY.md)** — what WinClipz is, the wedge, unit
   economics, the paperwork critical path, and the build sequence. **Start here.**
 - 💡 **[docs/BUSINESS-MODEL.md](docs/BUSINESS-MODEL.md)** — the honest Adin
   Ross / N3on breakdown: where the money really comes from and what transfers
@@ -60,7 +60,7 @@ Root Directory setting needed.** Set Node.js Version to 24.x. Or self-host with
 ## Repo layout
 
 ```
-Winz/
+WinClipz/
 ├── README.md               ← you are here
 ├── ARCHITECTURE.md         ← technical system design
 ├── package.json            ← the Next.js app lives at the root (deploys to Vercel as-is)
