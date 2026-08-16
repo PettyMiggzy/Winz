@@ -5,6 +5,7 @@ import type { Clip, Platform } from "@/lib/mock";
 import { ClipThumb } from "@/components/dashboard/ClipThumb";
 import { PlatformBadge } from "@/components/PlatformBadge";
 import { IconCheck, IconBolt, IconMusicOff } from "@/components/Icons";
+import { TikTokApproveDialog, type TikTokPostOptions } from "@/components/dashboard/TikTokApproveDialog";
 
 type Decision = "pending" | "approved" | "skipped";
 const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
@@ -21,14 +22,20 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
   const approved = initial.filter((c) => decisions[c.id] === "approved").length;
 
   const [failed, setFailed] = useState<Record<string, boolean>>({});
+  // Clip awaiting TikTok-specific consent (privacy level etc.) before approval.
+  const [tiktokDialog, setTiktokDialog] = useState<Clip | null>(null);
 
-  const persist = async (id: string, d: Decision) => {
+  const persist = async (id: string, d: Decision, tiktokOptions?: TikTokPostOptions) => {
     if (d === "pending") return;
     try {
       const res = await fetch(`/api/clips/${id}/decision`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision: d === "approved" ? "approve" : "skip", platform: assign[id] }),
+        body: JSON.stringify({
+          decision: d === "approved" ? "approve" : "skip",
+          platform: assign[id],
+          ...(tiktokOptions ? { tiktokOptions } : {}),
+        }),
       });
       if (!res.ok) throw new Error(String(res.status));
     } catch {
@@ -38,14 +45,34 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
     }
   };
 
-  const set = (id: string, d: Decision) => {
+  const set = (id: string, d: Decision, tiktokOptions?: TikTokPostOptions) => {
     setFailed((prev) => ({ ...prev, [id]: false }));
+    // TikTok approvals need explicit per-post consent (privacy dropdown, no
+    // default) — open the dialog instead of approving straight away.
+    if (d === "approved" && assign[id] === "tiktok" && !tiktokOptions) {
+      const clip = initial.find((c) => c.id === id);
+      if (clip) setTiktokDialog(clip);
+      return;
+    }
     setDecisions((prev) => ({ ...prev, [id]: d }));
-    void persist(id, d);
+    void persist(id, d, tiktokOptions);
   };
 
   return (
     <div>
+      {tiktokDialog && (
+        <TikTokApproveDialog
+          clipTitle={tiktokDialog.title}
+          accountHandle="winslowbankz"
+          onConfirm={(opts) => {
+            const id = tiktokDialog.id;
+            setTiktokDialog(null);
+            setDecisions((prev) => ({ ...prev, [id]: "approved" }));
+            void persist(id, "approved", opts);
+          }}
+          onCancel={() => setTiktokDialog(null)}
+        />
+      )}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="pill">
           <IconBolt className="h-3.5 w-3.5 text-brand" /> {pending.length} awaiting review
@@ -55,7 +82,11 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
         </div>
         <button
           onClick={() => {
-            const toApprove = initial.filter((c) => decisions[c.id] === "pending");
+            // TikTok clips need per-post consent (privacy dialog) — bulk
+            // approval covers the rest and leaves TikTok ones pending.
+            const toApprove = initial.filter(
+              (c) => decisions[c.id] === "pending" && assign[c.id] !== "tiktok"
+            );
             setFailed((prev) => {
               const next = { ...prev };
               for (const c of toApprove) next[c.id] = false;

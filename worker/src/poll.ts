@@ -48,6 +48,7 @@ async function ensureSchema(): Promise<void> {
   }
   // Idempotent micro-migrations for columns newer than the base schema.
   await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "claimedAt" timestamptz`;
+  await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "meta" jsonb`;
   // Recover jobs orphaned by container restarts before claimedAt existed.
   const legacy = await sql`
     UPDATE "Stream" SET status = 'QUEUED'

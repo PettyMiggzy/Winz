@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { getPrisma } from "@/server/db";
 import { daysSince, warmupStateFor } from "@/lib/ramp";
 import {
@@ -169,7 +170,8 @@ export type ClipDecision = "approve" | "skip";
 export async function recordClipDecision(
   clipId: string,
   decision: ClipDecision,
-  platform?: Platform
+  platform?: Platform,
+  postMeta?: Record<string, unknown>
 ): Promise<{ ok: boolean; notFound?: boolean }> {
   const prisma = getPrisma();
   if (!prisma) {
@@ -231,6 +233,10 @@ export async function recordClipDecision(
                 platform: a.platform,
                 status: "SCHEDULED" as const,
                 scheduledFor,
+                // Publish options chosen at approval (TikTok privacy etc.).
+                ...(postMeta && a.platform === "TIKTOK"
+                  ? { meta: postMeta as Prisma.InputJsonValue }
+                  : {}),
               };
             }),
           });

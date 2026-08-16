@@ -158,6 +158,9 @@ model Post {
   externalUrl  String?
   views        Int?
   likes        Int?
+  // Per-post publish options chosen by the user at approval time (e.g. TikTok
+  // privacy_level + interaction toggles — required by TikTok's UX guidelines).
+  meta         Json?
   createdAt    DateTime      @default(now())
 
   @@index([tenantId])

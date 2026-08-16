@@ -8,6 +8,7 @@ import { sql } from "../db.ts";
 import { publicUrl } from "../r2.ts";
 import * as blotato from "./blotato.ts";
 import * as uploadpost from "./uploadpost.ts";
+import * as tiktok from "./tiktok.ts";
 import type { Platform } from "./uploadpost.ts";
 
 /**
@@ -29,15 +30,18 @@ interface DuePost {
   title: string;
   caption: string | null;
   storageKey: string | null;
-  externalAccountId: string | null; // Blotato account id (SocialAccount.externalId)
+  externalAccountId: string | null; // provider account/profile id (SocialAccount.externalId)
+  hasOwnToken: boolean; // account connected via our own OAuth app
+  meta: Record<string, unknown> | null; // per-post options chosen at approval
 }
 
 /** Claim the oldest due, SCHEDULED post (CAS on status). */
 async function claimNext(): Promise<DuePost | null> {
   const rows = await sql<DuePost[]>`
-    SELECT p.id, p."clipId", p."accountId", p.platform,
+    SELECT p.id, p."clipId", p."accountId", p.platform, p.meta,
            c.title, c.hook AS caption, c."storageKey",
-           a."externalId" AS "externalAccountId"
+           a."externalId" AS "externalAccountId",
+           (a."accessToken" IS NOT NULL) AS "hasOwnToken"
     FROM "Post" p
     JOIN "Clip" c ON c.id = p."clipId"
     JOIN "SocialAccount" a ON a.id = p."accountId"
@@ -56,19 +60,33 @@ async function claimNext(): Promise<DuePost | null> {
 async function processOne(p: DuePost): Promise<void> {
   try {
     if (!p.storageKey) throw new Error("clip has no storageKey (not rendered/uploaded)");
-    if (!p.externalAccountId) {
-      throw new Error("account not linked to a posting provider (SocialAccount.externalId empty)");
-    }
-    const prov = provider();
-    if (!prov) throw new Error("no posting provider configured");
     const platform = p.platform.toLowerCase() as Platform;
-    const res = await prov.publish({
-      accountId: p.externalAccountId,
-      platform,
-      mediaUrl: publicUrl(p.storageKey),
-      title: p.title,
-      caption: p.caption ?? p.title,
-    });
+    const mediaUrl = publicUrl(p.storageKey);
+
+    let res: { externalId?: string; url?: string };
+    if (platform === "tiktok" && p.hasOwnToken && tiktok.tiktokConfigured()) {
+      // In-house TikTok (our own app): direct post in sandbox/audited mode,
+      // drafts mode otherwise (TIKTOK_POST_MODE=draft).
+      res = await tiktok.publishToTikTok({
+        socialAccountId: p.accountId,
+        mediaUrl,
+        caption: p.caption ?? p.title,
+        meta: (p.meta ?? {}) as tiktok.TikTokMeta,
+      });
+    } else {
+      if (!p.externalAccountId) {
+        throw new Error("account not linked to a posting provider (SocialAccount.externalId empty)");
+      }
+      const prov = provider();
+      if (!prov) throw new Error("no posting provider configured");
+      res = await prov.publish({
+        accountId: p.externalAccountId,
+        platform,
+        mediaUrl,
+        title: p.title,
+        caption: p.caption ?? p.title,
+      });
+    }
     await sql`
       UPDATE "Post"
       SET status = 'POSTED', "postedAt" = now(),
@@ -84,11 +102,14 @@ async function processOne(p: DuePost): Promise<void> {
 
 export async function runPublishPoller(intervalMs = 7000): Promise<void> {
   const prov = provider();
-  if (!prov) {
-    console.info("[winclipz-worker] no posting provider configured (set UPLOADPOST_API_KEY or BLOTATO_API_KEY) — publish poller idle (clips still cut, just not auto-posted).");
+  const inHouse = tiktok.tiktokConfigured() ? "in-house TikTok" : null;
+  if (!prov && !inHouse) {
+    console.info("[winclipz-worker] no posting provider configured (set UPLOADPOST_API_KEY / BLOTATO_API_KEY / TIKTOK_CLIENT_KEY) — publish poller idle (clips still cut, just not auto-posted).");
     return;
   }
-  console.info(`[winclipz-worker] publish poller watching for approved clips… (provider: ${prov.name})`);
+  console.info(
+    `[winclipz-worker] publish poller watching for approved clips… (${[prov?.name, inHouse].filter(Boolean).join(" + ")})`
+  );
   let stop = false;
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => { stop = true; });

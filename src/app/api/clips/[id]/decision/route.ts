@@ -18,7 +18,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (typeof body !== "object" || body === null) {
     return NextResponse.json({ error: "body must be an object" }, { status: 400 });
   }
-  const { decision: rawDecision, platform: rawPlatform } = body as { decision?: unknown; platform?: unknown };
+  const { decision: rawDecision, platform: rawPlatform, tiktokOptions } = body as {
+    decision?: unknown;
+    platform?: unknown;
+    tiktokOptions?: unknown;
+  };
 
   const decision = rawDecision as ClipDecision;
   if (!DECISIONS.includes(decision)) {
@@ -30,7 +34,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   const platform = rawPlatform != null ? (rawPlatform as Platform) : undefined;
 
-  const result = await recordClipDecision(id, decision, platform);
+  // TikTok requires a user-chosen privacy level per post (no defaults).
+  let postMeta: Record<string, unknown> | undefined;
+  if (platform === "tiktok" && decision === "approve") {
+    const opts = tiktokOptions as { privacyLevel?: unknown } | undefined;
+    if (!opts || typeof opts.privacyLevel !== "string" || !opts.privacyLevel) {
+      return NextResponse.json(
+        { error: "tiktokOptions.privacyLevel is required for TikTok approvals" },
+        { status: 400 }
+      );
+    }
+    postMeta = opts as Record<string, unknown>;
+  }
+
+  const result = await recordClipDecision(id, decision, platform, postMeta);
   if (result.notFound) {
     return NextResponse.json({ error: "clip not found" }, { status: 404 });
   }
