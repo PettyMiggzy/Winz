@@ -27,10 +27,10 @@ export default async function AnalyticsPage() {
       <Topbar title="Analytics" subtitle="What's working — and what WinClipz should clip more of." />
       <div className="space-y-8 px-5 py-6 sm:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total views" value={formatCount(totalViews)} delta="+34%" spark={stats.spark} />
+          <StatCard label="Total views" value={formatCount(totalViews)} spark={stats.spark} />
           <StatCard label="Avg. views / clip" value={formatCount(avgViews)} hint="posted clips" />
-          <StatCard label="Profile clicks" value={stats.profileClicks.toLocaleString()} delta="+21%" />
-          <StatCard label="Follows from clips" value={stats.newFollowers.toLocaleString()} hint="→ Kick + socials" />
+          <StatCard label="Profile clicks" value={stats.profileClicks.toLocaleString()} hint="coming soon" />
+          <StatCard label="Follows from clips" value={stats.newFollowers.toLocaleString()} hint="coming soon" />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -58,11 +58,24 @@ export default async function AnalyticsPage() {
 
           <div className="card p-5">
             <h3 className="mb-5 font-bold">What WinClipz learned this week</h3>
-            <ul className="space-y-3 text-sm">
-              <Insight tint="text-brand" text="Chat-spike clips outperformed audio-only clips by 2.3× views. WinClipz is weighting chat velocity higher." />
-              <Insight tint="text-magenta-soft" text="Clips under 22s held ~18% more watch time. Cutting tighter by default." />
-              <Insight tint="text-violet" text="Hooks phrased as a question drove more profile clicks. Prioritizing question hooks." />
-            </ul>
+            {posted.length >= 3 ? (
+              <ul className="space-y-3 text-sm">
+                <Insight
+                  tint="text-brand"
+                  text={`Your top clip ("${top[0]?.title}") scored ${top[0]?.score} — the engine favors more moments like it.`}
+                />
+                <Insight
+                  tint="text-violet"
+                  text={`${posted.length} clips posted so far. Insights sharpen as more performance data comes in.`}
+                />
+              </ul>
+            ) : (
+              <p className="text-sm leading-relaxed text-fog">
+                Once a few clips have been posted and racked up views, this panel shows
+                what’s working — which moments, lengths, and hooks perform best — so
+                the engine can double down on them.
+              </p>
+            )}
           </div>
         </div>
 

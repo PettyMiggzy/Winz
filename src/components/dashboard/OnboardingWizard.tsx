@@ -7,13 +7,13 @@ import { IconCheck, IconArrow, IconClock, IconLink } from "@/components/Icons";
 import { WARMUP_STEPS } from "@/lib/ramp";
 
 const KIT = [
-  { platform: "tiktok" as const, handle: "@winslowbankz", role: "main", note: "your primary — best clips" },
-  { platform: "tiktok" as const, handle: "@winslowclips", role: "clips", note: "different clips, own hooks" },
-  { platform: "instagram" as const, handle: "@winslowbankz", role: "main", note: "Professional account" },
-  { platform: "instagram" as const, handle: "@winslow.clips", role: "clips", note: "different clips" },
-  { platform: "youtube" as const, handle: "WinslowBankz", role: "main", note: "Shorts + long-form 'best of'" },
+  { platform: "tiktok" as const, handle: "@yourname", role: "main", note: "your primary — best clips" },
+  { platform: "tiktok" as const, handle: "@yournameclips", role: "clips", note: "different clips, own hooks" },
+  { platform: "instagram" as const, handle: "@yourname", role: "main", note: "Professional account" },
+  { platform: "instagram" as const, handle: "@yourname.clips", role: "clips", note: "different clips" },
+  { platform: "youtube" as const, handle: "YourName", role: "main", note: "Shorts + long-form 'best of'" },
 ];
-const BIO = "🎮 twitch of kick · new clips daily 🔥  ▶ Kick.com/WinslowBankz";
+const BIO = "🎮 live on kick · new clips daily 🔥  ▶ Kick.com/YourChannel";
 
 const STEPS = [
   { key: "plan", title: "Plan your accounts", time: "2 min" },
