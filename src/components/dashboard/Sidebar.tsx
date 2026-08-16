@@ -12,6 +12,7 @@ const NAV = [
   { href: "/dashboard/upload", label: "Upload", Icon: IconBolt },
   { href: "/dashboard/review", label: "Review queue", Icon: IconInbox },
   { href: "/dashboard/clips", label: "Clips", Icon: IconScissors },
+  { href: "/dashboard/posts", label: "Posts", Icon: IconChart },
   { href: "/dashboard/accounts", label: "Accounts", Icon: IconLink },
   { href: "/dashboard/onboarding", label: "Setup guide", Icon: IconCheck },
   { href: "/dashboard/analytics", label: "Analytics", Icon: IconChart },

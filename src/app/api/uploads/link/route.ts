@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/server/db";
+import { getSessionTenantId } from "@/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,14 +44,11 @@ export async function POST(req: Request) {
 
   const prisma = getPrisma();
   if (prisma) {
+    const tenantId = await getSessionTenantId();
+    if (!tenantId) return NextResponse.json({ error: "sign in to add videos" }, { status: 401 });
     const stream = await prisma.stream.create({
       data: {
-        tenant: {
-          connectOrCreate: {
-            where: { kickSlug: "winslowbankz" },
-            create: { name: "WinslowBankz", kickSlug: "winslowbankz" },
-          },
-        },
+        tenantId,
         title,
         status: "QUEUED",
         sourceUrl: parsed.toString(),

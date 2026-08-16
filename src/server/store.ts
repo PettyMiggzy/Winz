@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { getPrisma } from "@/server/db";
+import { getSessionTenantId } from "@/server/auth";
 import { daysSince, warmupStateFor } from "@/lib/ramp";
 import {
   clips as seedClips,
@@ -58,8 +59,11 @@ const DB_TO_UI_STATUS: Record<string, ClipStatus> = {
 export async function getClips(): Promise<Clip[]> {
   const prisma = getPrisma();
   if (!prisma) return seedClips;
+  const tenantId = await getSessionTenantId();
+  if (!tenantId) return [];
 
   const rows = await prisma.clip.findMany({
+    where: { tenantId },
     orderBy: { createdAt: "desc" },
     include: { stream: true, posts: true },
     take: 200,
@@ -106,8 +110,11 @@ export async function getPostedClips(): Promise<Clip[]> {
 export async function getStreams() {
   const prisma = getPrisma();
   if (!prisma) return seedStreams;
+  const tenantId = await getSessionTenantId();
+  if (!tenantId) return [];
 
   const rows = await prisma.stream.findMany({
+    where: { tenantId },
     orderBy: { startedAt: "desc" },
     include: { _count: { select: { clips: true } }, clips: { include: { posts: true } } },
     take: 12,
@@ -125,9 +132,11 @@ export async function getStreams() {
 export async function getAccounts(): Promise<Account[]> {
   const prisma = getPrisma();
   if (!prisma) return seedAccounts;
+  const tenantId = await getSessionTenantId();
+  if (!tenantId) return [];
 
   const rows = await prisma.socialAccount.findMany({
-    where: { platform: { not: "KICK" } },
+    where: { tenantId, platform: { not: "KICK" } },
     orderBy: { createdAt: "asc" },
   });
   return rows.map((a): Account => ({
@@ -149,11 +158,15 @@ export async function getStats() {
   const prisma = getPrisma();
   if (!prisma) return { ...seedStats, spark: seedSpark };
 
+  const tenantId = await getSessionTenantId();
+  if (!tenantId) {
+    return { clipsThisWeek: 0, viewsThisWeek: 0, viewsDeltaPct: 0, profileClicks: 0, newFollowers: 0, avgScore: 0, minutesToPost: 0, spark: Array(7).fill(0) };
+  }
   const weekAgo = new Date(Date.now() - 7 * 86400_000);
   const [clipsThisWeek, posts, scoreAgg] = await Promise.all([
-    prisma.clip.count({ where: { createdAt: { gte: weekAgo } } }),
-    prisma.post.findMany({ where: { postedAt: { gte: weekAgo } }, select: { views: true, postedAt: true } }),
-    prisma.clip.aggregate({ _avg: { score: true } }),
+    prisma.clip.count({ where: { tenantId, createdAt: { gte: weekAgo } } }),
+    prisma.post.findMany({ where: { tenantId, postedAt: { gte: weekAgo } }, select: { views: true, postedAt: true } }),
+    prisma.clip.aggregate({ where: { tenantId }, _avg: { score: true } }),
   ]);
   const viewsThisWeek = posts.reduce((s, p) => s + (p.views ?? 0), 0);
   // Real numbers only — zeros until posting/analytics generate data. Never mix
@@ -181,6 +194,40 @@ export function getChannel() {
   return CHANNEL;
 }
 
+export interface PostRow {
+  id: string;
+  clipTitle: string;
+  platform: Platform;
+  accountHandle: string;
+  status: "scheduled" | "posting" | "posted" | "failed";
+  when: string;
+  externalUrl?: string;
+}
+
+/** Post history — what went (or is going) where. */
+export async function getPosts(): Promise<PostRow[]> {
+  const prisma = getPrisma();
+  if (!prisma) return [];
+  const tenantId = await getSessionTenantId();
+  if (!tenantId) return [];
+
+  const rows = await prisma.post.findMany({
+    where: { tenantId },
+    orderBy: { createdAt: "desc" },
+    include: { clip: { select: { title: true } }, account: { select: { handle: true } } },
+    take: 100,
+  });
+  return rows.map((p) => ({
+    id: p.id,
+    clipTitle: p.clip.title,
+    platform: p.platform.toLowerCase() as Platform,
+    accountHandle: p.account.handle,
+    status: p.status.toLowerCase() as PostRow["status"],
+    when: relTime(p.postedAt ?? p.scheduledFor ?? p.createdAt),
+    externalUrl: p.externalUrl ?? undefined,
+  }));
+}
+
 // --------------------------------------------------------------- writes
 
 export type ClipDecision = "approve" | "skip";
@@ -196,9 +243,12 @@ export async function recordClipDecision(
     // Seed mode: nothing to persist. The UI updates optimistically.
     return { ok: true };
   }
-  // updateMany returns a count instead of throwing P2025 on a missing id.
+  const tenantId = await getSessionTenantId();
+  if (!tenantId) return { ok: false, notFound: true };
+  // updateMany returns a count instead of throwing P2025 on a missing id —
+  // and the tenant filter means you can only decide on your own clips.
   const res = await prisma.clip.updateMany({
-    where: { id: clipId },
+    where: { id: clipId, tenantId },
     data: {
       status: decision === "approve" ? "APPROVED" : "SKIPPED",
       assignedPlatform: platform

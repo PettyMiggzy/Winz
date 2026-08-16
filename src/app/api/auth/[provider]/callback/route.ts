@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getProvider, isConfigured } from "@/lib/social-oauth";
 import { getPrisma } from "@/server/db";
+import { getSessionTenantId } from "@/server/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,15 +91,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
 
     const prisma = getPrisma();
     if (prisma) {
+      const tenantId = await getSessionTenantId();
+      if (!tenantId) return back(`error=signed_out&provider=${p.id}`);
       const platform = p.id.toUpperCase() as "TIKTOK" | "INSTAGRAM";
-      const tenant = await prisma.tenant.upsert({
-        where: { kickSlug: "winslowbankz" },
-        update: {},
-        create: { name: "WinslowBankz", kickSlug: "winslowbankz" },
-      });
       const existing = externalId
         ? await prisma.socialAccount.findFirst({
-            where: { tenantId: tenant.id, platform, externalId },
+            where: { tenantId, platform, externalId },
           })
         : null;
       const tokenData = {
@@ -113,7 +111,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
       } else {
         await prisma.socialAccount.create({
           data: {
-            tenantId: tenant.id,
+            tenantId,
             platform,
             role: "MAIN",
             externalId,

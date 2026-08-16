@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/server/db";
+import { getSessionTenantId } from "@/server/auth";
 import { r2Configured, presignPut, publicUrl } from "@/server/r2";
 
 export const runtime = "nodejs";
@@ -33,21 +34,18 @@ export async function POST(req: Request) {
 
   const title = filename.replace(/\.[a-z0-9]+$/i, "").slice(0, 120);
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
-  const key = `uploads/winslowbankz/${Date.now().toString(36)}-${safeName}`;
   const prisma = getPrisma();
 
   if (prisma) {
+    const tenantId = await getSessionTenantId();
+    if (!tenantId) return NextResponse.json({ error: "sign in to upload" }, { status: 401 });
+    const key = `uploads/${tenantId}/${Date.now().toString(36)}-${safeName}`;
     const uploadUrl = r2Configured
       ? await presignPut(key, typeof contentType === "string" ? contentType : "video/mp4")
       : null;
     const stream = await prisma.stream.create({
       data: {
-        tenant: {
-          connectOrCreate: {
-            where: { kickSlug: "winslowbankz" },
-            create: { name: "WinslowBankz", kickSlug: "winslowbankz" },
-          },
-        },
+        tenantId,
         title,
         status: uploadUrl ? "UPLOADING" : "QUEUED",
         sourceKey: key,
