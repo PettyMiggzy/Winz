@@ -8,7 +8,7 @@
  * camelCase columns), so no cross-directory Prisma generation is needed here.
  */
 
-import { mkdtemp, writeFile, rm, readFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,7 @@ import { processVideo } from "../engine/index.ts";
 import { detectMusic } from "./music.ts";
 import { config } from "./config.ts";
 import { r2Configured, uploadFile } from "./r2.ts";
+import { downloadSource } from "./download.ts";
 import { sql } from "./db.ts";
 
 // prepare:false — Neon's pooled endpoint (PgBouncer, transaction mode) rejects
@@ -65,9 +66,8 @@ async function processOne(s: QueuedStream): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), "winclipz-"));
   const input = join(dir, "source.mp4");
   try {
-    const res = await fetch(s.sourceUrl);
-    if (!res.ok) throw new Error(`fetch source ${res.status}`);
-    await writeFile(input, Buffer.from(await res.arrayBuffer()));
+    // Direct fetch for uploaded files; yt-dlp for YouTube/Kick/Twitch links.
+    await downloadSource(s.sourceUrl, input);
 
     const outDir = join(config.workDir, s.tenantId, s.id);
     const manifest = await processVideo(input, outDir, {
