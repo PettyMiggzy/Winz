@@ -220,9 +220,14 @@ export async function recordClipDecision(
         select: { id: true, platform: true },
       });
       if (accounts.length > 0) {
-        // Skip accounts that already have a Post for this clip (idempotent re-approve).
+        // Skip accounts that already have a live Post for this clip (idempotent
+        // re-approve). FAILED posts don't count — re-approving retries them.
         const existing = await prisma.post.findMany({
-          where: { clipId, accountId: { in: accounts.map((a) => a.id) } },
+          where: {
+            clipId,
+            accountId: { in: accounts.map((a) => a.id) },
+            status: { not: "FAILED" },
+          },
           select: { accountId: true },
         });
         const seen = new Set(existing.map((e) => e.accountId));

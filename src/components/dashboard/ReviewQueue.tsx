@@ -10,7 +10,13 @@ import { TikTokApproveDialog, type TikTokPostOptions } from "@/components/dashbo
 type Decision = "pending" | "approved" | "skipped";
 const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
 
-export function ReviewQueue({ initial }: { initial: Clip[] }) {
+export function ReviewQueue({
+  initial,
+  tiktokHandle,
+}: {
+  initial: Clip[];
+  tiktokHandle?: string | null;
+}) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>(
     Object.fromEntries(initial.map((c) => [c.id, "pending"]))
   );
@@ -63,7 +69,7 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
       {tiktokDialog && (
         <TikTokApproveDialog
           clipTitle={tiktokDialog.title}
-          accountHandle="winslowbankz"
+          accountHandle={tiktokHandle ?? "no TikTok connected"}
           onConfirm={(opts) => {
             const id = tiktokDialog.id;
             setTiktokDialog(null);
