@@ -13,17 +13,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
-import postgres from "postgres";
 import { processVideo } from "../engine/index.ts";
 import { detectMusic } from "./music.ts";
 import { config } from "./config.ts";
 import { r2Configured, uploadFile } from "./r2.ts";
+import { sql } from "./db.ts";
 
 // prepare:false — Neon's pooled endpoint (PgBouncer, transaction mode) rejects
 // named prepared statements. Disabling them lets the worker use either the
 // pooled or the direct connection string without errors.
-const sql = postgres(process.env.DATABASE_URL ?? "", { max: 4, prepare: false });
-
 interface QueuedStream {
   id: string;
   tenantId: string;
@@ -126,6 +124,5 @@ export async function runPoller(intervalMs = 5000): Promise<void> {
       await new Promise((r) => setTimeout(r, intervalMs));
     }
   }
-  await sql.end();
-  console.info("[winclipz-worker] stopped");
+  console.info("[winclipz-worker] clip poller stopped");
 }

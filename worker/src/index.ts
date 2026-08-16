@@ -1,7 +1,12 @@
-/** Worker entrypoint: poll Postgres for QUEUED streams and run the clip engine. */
+/**
+ * Worker entrypoint: run two DB-queue pollers side by side —
+ *  - clip poller: QUEUED streams → cut clips
+ *  - publish poller: approved clips → post to socials (via provider, e.g. Blotato)
+ */
 import { runPoller } from "./poll.ts";
+import { runPublishPoller } from "./publish/poller.ts";
 
-runPoller().catch((e) => {
+Promise.all([runPoller(), runPublishPoller()]).catch((e) => {
   console.error("[winclipz-worker] fatal:", e);
   process.exit(1);
 });

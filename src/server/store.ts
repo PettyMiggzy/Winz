@@ -187,6 +187,48 @@ export async function recordClipDecision(
     },
   });
   if (res.count === 0) return { ok: false, notFound: true };
-  // TODO: on approve, enqueue a publish job for the worker.
+
+  // On approve, fan the clip out to the tenant's connected accounts as SCHEDULED
+  // Posts. The worker's publish poller picks these up and posts them. Scope to
+  // the chosen platform when one was picked; otherwise every connected platform.
+  if (decision === "approve") {
+    const clip = await prisma.clip.findUnique({
+      where: { id: clipId },
+      select: { tenantId: true, assignedPlatform: true },
+    });
+    if (clip) {
+      const platformFilter = clip.assignedPlatform ?? undefined;
+      const accounts = await prisma.socialAccount.findMany({
+        where: {
+          tenantId: clip.tenantId,
+          connected: true,
+          warmupState: { not: "NEW" }, // NEW accounts haven't started their ramp
+          ...(platformFilter ? { platform: platformFilter } : {}),
+        },
+        select: { id: true, platform: true },
+      });
+      if (accounts.length > 0) {
+        // Skip accounts that already have a Post for this clip (idempotent re-approve).
+        const existing = await prisma.post.findMany({
+          where: { clipId, accountId: { in: accounts.map((a) => a.id) } },
+          select: { accountId: true },
+        });
+        const seen = new Set(existing.map((e) => e.accountId));
+        const toCreate = accounts.filter((a) => !seen.has(a.id));
+        if (toCreate.length > 0) {
+          await prisma.post.createMany({
+            data: toCreate.map((a) => ({
+              tenantId: clip.tenantId,
+              clipId,
+              accountId: a.id,
+              platform: a.platform,
+              status: "SCHEDULED" as const,
+            })),
+          });
+          await prisma.clip.update({ where: { id: clipId }, data: { status: "SCHEDULED" } });
+        }
+      }
+    }
+  }
   return { ok: true };
 }

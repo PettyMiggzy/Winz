@@ -26,6 +26,13 @@ function endpoint(key: string): string {
   return `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET}/${key}`;
 }
 
+/** Public URL for an R2 object key (needs a public bucket or custom domain). */
+export function publicUrl(key: string): string {
+  const base = process.env.R2_PUBLIC_BASE_URL;
+  if (base) return `${base.replace(/\/$/, "")}/${key}`;
+  return `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET}/${key}`;
+}
+
 /** Upload a local file to R2 under `key`. Returns the key on success. */
 export async function uploadFile(key: string, localPath: string, contentType = "video/mp4"): Promise<string> {
   const body = await readFile(localPath);
