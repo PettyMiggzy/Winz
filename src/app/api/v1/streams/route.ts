@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/server/db";
 import { tenantForApiKey } from "@/server/apikeys";
+import { checkVideoQuota } from "@/server/limits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const tenantId = await tenantForApiKey(req.headers.get("authorization"));
   if (!tenantId) return NextResponse.json({ error: "invalid or missing API key" }, { status: 401 });
+  const quota = await checkVideoQuota(tenantId);
+  if (!quota.allowed) return NextResponse.json({ error: quota.error }, { status: 402 });
   const prisma = getPrisma()!;
 
   let body: { url?: unknown; title?: unknown };

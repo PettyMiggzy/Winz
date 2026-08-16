@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/server/db";
 import { getSessionTenantId } from "@/server/auth";
+import { checkVideoQuota } from "@/server/limits";
 import { r2Configured, presignPut, publicUrl } from "@/server/r2";
 
 export const runtime = "nodejs";
@@ -39,6 +40,8 @@ export async function POST(req: Request) {
   if (prisma) {
     const tenantId = await getSessionTenantId();
     if (!tenantId) return NextResponse.json({ error: "sign in to upload" }, { status: 401 });
+    const quota = await checkVideoQuota(tenantId);
+    if (!quota.allowed) return NextResponse.json({ error: quota.error }, { status: 402 });
     const key = `uploads/${tenantId}/${Date.now().toString(36)}-${safeName}`;
     const uploadUrl = r2Configured
       ? await presignPut(key, typeof contentType === "string" ? contentType : "video/mp4")
