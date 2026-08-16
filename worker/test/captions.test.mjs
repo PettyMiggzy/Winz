@@ -31,5 +31,14 @@ ok("uppercases by default", ass.includes("DOWN"));
 ok("emits a Dialogue line", ass.includes("Dialogue: 0,0:00:00.00,"));
 ok("empty words → header only, no Dialogue", !buildAss([]).includes("Dialogue:"));
 
+// Karaoke timing: inter-word gaps fold into the preceding word's \k so the
+// highlight stays synced to the audio (audit fix).
+const gappy = buildAss([
+  { text: "a", start: 0, end: 0.3 },
+  { text: "b", start: 2.0, end: 2.3 },
+]);
+ok("gap folded into first word's \\k (200cs not 30)", gappy.includes("{\\k200}A"));
+ok("last word uses its own duration", gappy.includes("{\\k30}B"));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

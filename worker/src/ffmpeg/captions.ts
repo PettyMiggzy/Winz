@@ -96,8 +96,12 @@ export function buildAss(words: Word[], options: CaptionOptions = {}): string {
       const start = assTime(line[0].start);
       const end = assTime(line[line.length - 1].end);
       const text = line
-        .map((w) => {
-          const durCs = Math.max(1, Math.round((w.end - w.start) * 100));
+        .map((w, i) => {
+          // \k is cumulative from the line start, so each word's highlight must
+          // span until the NEXT word begins (folding inter-word silence in) or
+          // the karaoke sweep drifts ahead of the audio. Last word: own length.
+          const durSec = i < line.length - 1 ? line[i + 1].start - w.start : w.end - w.start;
+          const durCs = Math.max(1, Math.round(durSec * 100));
           const t = o.uppercase ? w.text.toUpperCase() : w.text;
           return `{\\k${durCs}}${escapeAss(t.trim())} `;
         })

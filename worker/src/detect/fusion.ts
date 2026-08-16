@@ -18,6 +18,8 @@ export interface Candidate {
   anchorSec: number;
   score: number;
   signals: SignalKind[];
+  /** Weight of the single strongest peak backing this window (anchor owner). */
+  anchorWeight: number;
 }
 
 export interface FusionOptions {
@@ -39,22 +41,31 @@ export function buildCandidates(peaks: SignalPeak[], opts: FusionOptions): Candi
     .map((p) => {
       const start = clamp(p.tSec - preSec, 0, streamDurationSec);
       const end = clamp(p.tSec + postSec, 0, streamDurationSec);
-      return { startSec: start, endSec: end, anchorSec: p.tSec, score: p.weight, signals: [p.kind] };
+      return {
+        startSec: start,
+        endSec: end,
+        anchorSec: p.tSec,
+        score: p.weight,
+        signals: [p.kind],
+        anchorWeight: p.weight,
+      };
     })
     .filter((c) => c.endSec - c.startSec >= 1)
     .sort((a, b) => a.startSec - b.startSec);
 
-  // Merge overlapping windows.
+  // Merge overlapping windows. The anchor follows the strongest INDIVIDUAL
+  // peak (anchorWeight), compared before scores are summed — comparing against
+  // the accumulated total would make the update unreachable.
   const merged: Candidate[] = [];
   for (const c of seeds) {
     const last = merged[merged.length - 1];
     if (last && c.startSec <= last.endSec) {
       last.endSec = Math.max(last.endSec, c.endSec);
-      last.score += c.score;
-      // stronger anchor wins
-      if (c.score > 0 && c.anchorSec !== last.anchorSec && peakStrength(c) > peakStrength(last)) {
+      if (c.anchorWeight > last.anchorWeight) {
         last.anchorSec = c.anchorSec;
+        last.anchorWeight = c.anchorWeight;
       }
+      last.score += c.score;
       for (const s of c.signals) if (!last.signals.includes(s)) last.signals.push(s);
     } else {
       merged.push({ ...c, signals: [...c.signals] });
@@ -65,10 +76,6 @@ export function buildCandidates(peaks: SignalPeak[], opts: FusionOptions): Candi
   return merged
     .map((c) => enforceLength(c, minClipSec, maxClipSec, streamDurationSec))
     .sort((a, b) => b.score - a.score);
-}
-
-function peakStrength(c: Candidate): number {
-  return c.score;
 }
 
 function enforceLength(c: Candidate, minSec: number, maxSec: number, streamDur: number): Candidate {

@@ -38,6 +38,21 @@ ok("merged score sums signals", top.score === 7);
 ok("merged candidate lists both signals", top.signals.includes("audio") && top.signals.includes("chat"));
 ok("clip length within max", cands.every((c) => c.endSec - c.startSec <= 45 + 0.001));
 ok("candidates ranked by score desc", cands[0].score >= cands[1].score);
+ok("merged anchor follows stronger peak", top.anchorSec === 105);
+
+// Audit fix: a chain-merge must adopt the strongest INDIVIDUAL peak's anchor,
+// and the final clamped window must still contain that moment.
+const chain = buildCandidates(
+  [
+    { tSec: 10, weight: 2, kind: "audio" },
+    { tSec: 30, weight: 3, kind: "chat" },
+    { tSec: 50, weight: 9, kind: "audio" },
+  ],
+  { streamDurationSec: 1000, preSec: 12, postSec: 12, minClipSec: 10, maxClipSec: 45 }
+);
+ok("chain-merge collapses to one candidate", chain.length === 1);
+ok("anchor lands on the strongest peak (t=50)", chain[0].anchorSec === 50);
+ok("clamped window still contains the highlight", chain[0].startSec <= 50 && 50 <= chain[0].endSec);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

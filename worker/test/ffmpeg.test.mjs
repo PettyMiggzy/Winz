@@ -24,15 +24,22 @@ ok("assertEven accepts even", (() => { try { assertEven(1080, 1920); return true
 // layouts
 ok("crop outputs [base]", layoutFilter("crop").includes("[base]"));
 ok("crop targets 1080x1920", layoutFilter("crop").includes(`crop=${OUT_W}:${OUT_H}`));
+ok("crop covers before cropping (tall-source fix)", layoutFilter("crop").includes("force_original_aspect_ratio=increase"));
 ok("blur uses boxblur not gblur", layoutFilter("blur").includes("boxblur") && !layoutFilter("blur").includes("gblur"));
 ok("stack uses vstack", layoutFilter("stack").includes("vstack"));
 
 const noCap = buildFilterComplex({ layout: "crop", watermark: "kick.com/WinslowBankz" });
 ok("no captions → out label [wm]", noCap.outLabel === "[wm]");
 ok("watermark centered vertically", noCap.filterComplex.includes("y=(h-text_h)/2"));
+ok("drawtext expansion disabled (literal %)", noCap.filterComplex.includes("expansion=none"));
 const withCap = buildFilterComplex({ layout: "blur", watermark: "kick.com/x", assPath: "/tmp/s.ass" });
 ok("captions → out label [out]", withCap.outLabel === "[out]" && withCap.filterComplex.includes("ass="));
-ok("drawtext escapes colon", escapeDrawtext("kick.com/x:y").includes("\\:"));
+// FFmpeg quoting: embedded apostrophes must use the '\'' idiom, never \'
+ok("apostrophe uses '\\'' idiom", escapeDrawtext("O'Brien") === `O'\\''Brien`);
+ok("no lone backslash-quote escapes", !escapeDrawtext("O'Brien's").includes(`\\'B`) || escapeDrawtext("O'Brien's").includes(`'\\''`));
+const apos = buildFilterComplex({ layout: "blur", watermark: "O'Brien's Clips" });
+ok("apostrophe watermark filtergraph has balanced quotes", (apos.filterComplex.match(/'/g) || []).length % 2 === 0);
+ok("backslashes stripped from user text", !escapeDrawtext("a\\b").includes("\\\\") && escapeDrawtext("a\\b") === "ab");
 
 // render args
 const args = buildRenderArgs({ input: "in.mp4", output: "out.mp4", startSec: 100, endSec: 130, platform: "tiktok", layout: "crop", watermark: "kick.com/x" });

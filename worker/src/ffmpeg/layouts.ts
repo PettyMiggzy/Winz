@@ -18,7 +18,10 @@ export type Layout = "crop" | "blur" | "stack";
 export function layoutFilter(layout: Layout): string {
   switch (layout) {
     case "crop":
-      return `[0:v]scale=-2:${OUT_H},crop=${OUT_W}:${OUT_H}[base]`;
+      // force_original_aspect_ratio=increase guarantees the scaled frame covers
+      // 1080x1920 before the center crop, so narrower-than-9:16 sources don't
+      // make crop request more width than the input has (ffmpeg error).
+      return `[0:v]scale=${OUT_W}:${OUT_H}:force_original_aspect_ratio=increase,crop=${OUT_W}:${OUT_H}[base]`;
     case "blur":
       // boxblur (not gblur) — gblur is ~2x slower on CPU per the research.
       return (
@@ -39,24 +42,27 @@ export function layoutFilter(layout: Layout): string {
   }
 }
 
-/** Escape a string for use inside an FFmpeg drawtext text= value. */
+/**
+ * Quote a string for use as a single-quoted FFmpeg filter option value.
+ * Inside single quotes no escaping is performed, so an embedded apostrophe
+ * must use the documented idiom: close quote, escaped quote, reopen ('\'').
+ * Backslashes are stripped (multi-level filtergraph escaping makes them
+ * hopeless in user text, and no channel branding legitimately needs one).
+ */
 export function escapeDrawtext(s: string): string {
-  return s
-    .replace(/\\/g, "\\\\")
-    .replace(/:/g, "\\:")
-    .replace(/'/g, "\\'")
-    .replace(/%/g, "\\%");
+  return s.replace(/\\/g, "").replace(/'/g, `'\\''`);
 }
 
 /**
  * Persistent channel watermark, centered vertically — the one place no
  * platform's UI ever covers (never bottom-right; that's the action rail).
+ * expansion=none disables drawtext %{} expansion so % is literal.
  * Consumes [base], outputs [wm].
  */
 export function watermarkFilter(text: string, opts: { fontFile?: string } = {}): string {
-  const font = opts.fontFile ? `fontfile='${opts.fontFile}':` : "";
+  const font = opts.fontFile ? `fontfile='${escapeDrawtext(opts.fontFile)}':` : "";
   return (
-    `[base]drawtext=${font}text='${escapeDrawtext(text)}':` +
+    `[base]drawtext=${font}expansion=none:text='${escapeDrawtext(text)}':` +
     `fontcolor=white@0.92:fontsize=34:` +
     `box=1:boxcolor=black@0.35:boxborderw=10:` +
     `x=(w-text_w)/2:y=(h-text_h)/2[wm]`
@@ -65,9 +71,7 @@ export function watermarkFilter(text: string, opts: { fontFile?: string } = {}):
 
 /** Burn ASS karaoke captions. Consumes [wm], outputs [out]. */
 export function captionFilter(assPath: string): string {
-  // Escape backslashes and single quotes for the filter arg.
-  const p = assPath.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-  return `[wm]ass='${p}'[out]`;
+  return `[wm]ass='${escapeDrawtext(assPath)}'[out]`;
 }
 
 /**
