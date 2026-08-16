@@ -21,6 +21,7 @@ export function Footer() {
               { href: "/dashboard", label: "Dashboard demo" },
             ]} />
             <FooterCol title="Company" links={[
+              { href: "/developers", label: "API for developers" },
               { href: "/#proof", label: "The proof" },
               { href: "/#faq", label: "FAQ" },
               { href: "mailto:hello@winz.app", label: "Contact" },

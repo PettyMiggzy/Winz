@@ -66,6 +66,7 @@ model Tenant {
   streams   Stream[]
   clips     Clip[]
   posts     Post[]
+  apiKeys   ApiKey[]
 }
 
 model User {
@@ -91,6 +92,19 @@ model Session {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name       String
+  // sha256 of the key (shown to the user once at creation).
+  keyHash    String    @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId])
 }
 
 model SocialAccount {

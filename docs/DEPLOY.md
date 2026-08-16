@@ -1,130 +1,108 @@
-# WinClipz — Deploy & Flip It On
+# WinClipz — Deploy & Operations
 
-The whole system, end to end. Two things run; they share a database and a bucket.
+The system in production. Two things run; they share a database and a bucket.
 
 ```
-   Browser ─▶ Vercel (Next.js: dashboard + API)
-                 │  presigned upload
+   Browser ─▶ Vercel (Next.js: site + dashboard + API + auth)
+                 │  presigned upload / link submit
                  ▼
-             Cloudflare R2  ◀── worker fetches the source
+             Cloudflare R2  ◀── worker fetches sources, writes clips
                  ▲                         │
                  │ QUEUED stream           ▼
-             Postgres  ◀────────  Worker (your server: FFmpeg + engine)
-                                     writes clips ▶ dashboard shows them
+             Postgres  ◀────────  Worker(s) (FFmpeg + yt-dlp + engine)
+                (Neon)               clip poller + publish poller
 ```
 
-- **Web** (Vercel): the site, dashboard, and API. No FFmpeg, no heavy work.
-- **Worker** (a cheap always-on box): polls Postgres for `QUEUED` streams,
-  downloads the video from R2, runs the clip engine, writes clips back.
-- **Postgres** is also the job queue (no Redis needed).
+- **Web** (Vercel): marketing site, dashboard, auth, REST API. No heavy work.
+- **Worker** (Railway and/or any Docker box): polls Postgres for `QUEUED`
+  streams, downloads the video (direct or yt-dlp via proxy), runs the clip
+  engine, uploads clips to R2. A second poller posts approved clips.
+- **Postgres is the queue** (no Redis). Multiple workers can run at once —
+  jobs are claimed atomically; stale claims auto-requeue after 2h.
+- **Schema is self-provisioning**: the worker creates all tables and applies
+  idempotent micro-migrations at boot. No manual `db push` needed.
 
-Rough cost: **Vercel free · Neon Postgres free · R2 ~$0–1/mo · a $5–10/mo worker
-box · Groq ~$0.02 per 30-min video.**
+## Environment variables
 
----
-
-## 1. Postgres (Neon — free)
-
-1. Create a project at [neon.tech](https://neon.tech), copy the connection
-   string (`postgresql://…`).
-2. Locally, create the schema:
-   ```bash
-   # repo root
-   echo "DATABASE_URL=postgresql://…" >> .env.local
-   npm install
-   npm run db:push        # creates all tables from prisma/schema.prisma
-   ```
-
-## 2. Cloudflare R2 (storage)
-
-1. Cloudflare dashboard → **R2** → create a bucket, e.g. `winclipz`.
-2. **R2 → Manage API Tokens** → create a token with Object Read & Write. Note
-   the **Account ID**, **Access Key ID**, **Secret**.
-3. Give the bucket a public URL so the worker (and Instagram) can fetch clips:
-   bucket → **Settings → Public access** → enable an `r2.dev` URL *or* connect a
-   custom domain. That URL is `R2_PUBLIC_BASE_URL`.
-
-## 3. Groq (transcription + LLM, free tier)
-
-Create a key at [console.groq.com](https://console.groq.com) → `GROQ_API_KEY`.
-(The engine uses it for Whisper *and* the scoring model. To use a different
-OpenAI-compatible model, set `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY`.)
-
-## 4. Deploy the web app (Vercel)
-
-Already connected — just add environment variables (Project → Settings →
-Environment Variables) and redeploy:
-
-| Variable | Value |
+### Web (Vercel)
+| Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | the Neon string |
-| `NEXT_PUBLIC_APP_URL` | your Vercel URL (e.g. `https://winclipz.vercel.app`) |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | from step 2 |
-| `R2_PUBLIC_BASE_URL` | the public bucket URL |
+| `DATABASE_URL` | Neon Postgres (pooled string is fine) |
+| `NEXT_PUBLIC_APP_URL` | canonical site URL |
+| `ADMIN_EMAILS` | comma-separated emails that claim the founding workspace as ADMIN on signup |
+| `R2_ACCOUNT_ID` `R2_ACCESS_KEY_ID` `R2_SECRET_ACCESS_KEY` `R2_BUCKET` `R2_PUBLIC_BASE_URL` | Cloudflare R2 storage |
+| `TIKTOK_CLIENT_KEY` `TIKTOK_CLIENT_SECRET` `TIKTOK_REDIRECT_URI` | own TikTok app (Login Kit); sandbox creds until approved |
+| `TIKTOK_SCOPES` | optional override; must match scopes enabled on the app/sandbox |
+| `INSTAGRAM_CLIENT_ID` `INSTAGRAM_CLIENT_SECRET` `INSTAGRAM_REDIRECT_URI` | Meta app (Instagram Login), when configured |
 
-Once these are set, the dashboard reads the real database and uploads go
-straight to R2.
+### Worker (Railway variables / DO `worker/.env`)
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | same Neon database as the web app |
+| `GROQ_API_KEY` | Whisper transcription + LLM scoring |
+| `R2_*` (all five) | same values as the web app — worker uploads clips |
+| `YTDLP_PROXY` | residential proxy (`http://user:pass@host:port`) — required for YouTube links |
+| `YTDLP_COOKIES_B64` | optional: base64 cookies.txt, extra YouTube reliability |
+| `TIKTOK_CLIENT_KEY` `TIKTOK_CLIENT_SECRET` | in-house TikTok posting (accounts connected on the site) |
+| `TIKTOK_POST_MODE` | `direct` (default; sandbox/audited) or `draft` (works unaudited) |
+| `UPLOADPOST_API_KEY` | vendor posting bridge (researched pick, $16/mo) — TikTok/IG/YT via their approved app |
+| `BLOTATO_API_KEY` | fallback vendor bridge |
+| `AUDD_API_KEY` | optional music fingerprinting gate |
 
-## 5. Deploy the worker (Railway or Render — the box with FFmpeg)
+Boot logs confess the config: `database host: …`, `R2: configured/NOT
+CONFIGURED`, and which posting providers are active. Read them after every
+deploy.
 
-The worker is a Docker image (FFmpeg baked in). On **Railway** or **Render**:
+## Auth & workspaces
 
-1. New project → deploy from this GitHub repo.
-2. Point it at **`worker/Dockerfile`** with **build context = repo root**
-   (Railway: set the Dockerfile path; Render: "Docker" env, root dir `.`,
-   Dockerfile `worker/Dockerfile`).
-3. Environment variables:
-   | Variable | Value |
-   |---|---|
-   | `DATABASE_URL` | same Neon string as the web app |
-   | `GROQ_API_KEY` | from step 3 |
-   | `WORK_DIR` | `/tmp/winclipz` (default) |
+- Email+password auth; sessions in Postgres (30-day HttpOnly cookie).
+- Signup requires agreeing to the ToS (enforced client + server side).
+- Each signup creates an isolated workspace (plan `FREE`). Emails in
+  `ADMIN_EMAILS` attach to the founding WinslowBankz workspace as `ADMIN`.
+- All dashboard pages and APIs are scoped to the session's workspace.
+- No `DATABASE_URL` → demo mode: open dashboard with seed data, no auth.
 
-That's it — no exposed port (it's a background poller, not a web service).
-On boot it logs `polling for QUEUED streams…`.
+## Posting pipeline
 
-> **Self-host alternative:** any $5–10/mo VPS with Docker:
-> `docker build -f worker/Dockerfile -t winclipz-worker . && docker run -d --env-file worker/.env winclipz-worker`.
-> Or bare: install `ffmpeg`, `cd worker && npm install && npm start`.
+Approve a clip → Posts are created for the workspace's connected accounts
+(staggered 90–120 min apart, never simultaneous; failed posts can be retried
+by re-approving). The worker's publish poller sends each post:
 
-## 6. First end-to-end test (uses Winslow's YouTube back-catalog)
+- **TikTok (in-house)**: accounts connected via our own TikTok app post
+  through it (`direct` needs sandbox/audit; unaudited production clients can
+  only post to private accounts — TikTok's rule, lifts after app review).
+- **Vendor bridge**: everything else goes through upload-post/Blotato when a
+  key is set.
 
-1. In **YouTube Studio**, download one of WinslowBankz's videos (MP4).
-2. Open the dashboard → **Upload** → drop the file → **Clip it**.
-3. It uploads to R2 and the stream goes `QUEUED`. The worker claims it, and in a
-   few minutes clips appear in **Review queue** with titles + captions.
-4. Watch the worker logs — you'll see `transcribe → signals → score → render → done`.
+TikTok approvals require a per-post consent dialog (privacy dropdown with no
+default) — that UI is part of the product, don't "optimize" it away; it's a
+TikTok compliance requirement.
 
-If clips show up, the machine works. 🎬
+## Developer API (monetizable surface)
 
-## 7. Turn on posting (OAuth — later, needs registered apps)
+Public REST API, keys managed in Dashboard → Settings → API keys (sha256
+stored, secret shown once). Docs at `/developers`.
 
-Posting to TikTok/Instagram needs registered developer apps + (for TikTok) the
-content-posting audit. When ready:
+- `POST /api/v1/streams` `{url}` → queue a video (Bearer `wcz_…`)
+- `GET /api/v1/streams/:id` → status + clips
+- `GET /api/v1/clips` → newest 100 clips
 
-- **TikTok**: create an app at developers.tiktok.com, add
-  `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET`/`TIKTOK_REDIRECT_URI`
-  (`https://<app>/api/auth/tiktok/callback`). **File the Content Posting audit
-  early** — until it passes, API posts are private-only.
-- **Instagram**: create a Meta app (Instagram Login), add
-  `INSTAGRAM_CLIENT_ID`/`SECRET`/`REDIRECT_URI`. For your own accounts, Standard
-  Access is enough.
-- **Shortcut**: route TikTok/YouTube posting through **Blotato** ($29/mo, already
-  audited) while your own audits process. YouTube already works — post Shorts to
-  WinslowBankz directly.
+## Runbooks
 
-Until then, the **Connect** buttons redirect to setup instead of erroring, and
-you can approve clips in the review queue and post them by hand.
+**Add a worker**: any Docker host —
+`git clone … && docker build -f worker/Dockerfile -t winclipz-worker . && docker run -d --restart unless-stopped --env-file worker/.env winclipz-worker`.
+Railway: set replicas, or bump CPU/RAM in service Settings for faster renders.
 
----
+**A video failed**: check worker logs. yt-dlp bot-check → retry (proxy IP
+roll); the stream can be requeued by setting its status back to `QUEUED`.
+Stale `PROCESSING` jobs auto-requeue after 2h.
 
-## Verify checklist
+**Rotate burned credentials** (were pasted in chats/screens during setup):
+Neon DB password, Groq key, DataImpulse proxy password, TikTok client
+secret. Rotate in each provider dashboard → update Vercel/Railway/DO envs.
 
-- [ ] `npm run db:push` created the tables (Neon).
-- [ ] Web deploy has DATABASE_URL + R2_* → `/api/health` shows `"database":"configured"`.
-- [ ] Worker box is up and logging `polling for QUEUED streams…`.
-- [ ] An uploaded video produces clips in the review queue.
-
-> The upload → worker → clips path hasn't been run in CI (no FFmpeg/DB in the
-> build sandbox). Do the step-6 test on first deploy and check the worker logs;
-> ping me with any error and I'll fix it fast.
+**TikTok app review** (parked until the site is polished): portal draft is
+complete (icon, URLs verified, products+scopes, sandbox with target user).
+Record the demo (connect → upload → review → consent dialog → post) on
+winclipz.net, upload, submit. Approval lifts the private-account restriction
+and enables offering TikTok posting to all users through our own app.

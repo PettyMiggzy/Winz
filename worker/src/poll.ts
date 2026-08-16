@@ -60,6 +60,16 @@ async function ensureSchema(): Promise<void> {
       "createdAt" timestamptz NOT NULL DEFAULT now()
     )`;
   await sql`CREATE INDEX IF NOT EXISTS "Session_userId_idx" ON "Session"("userId")`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS "ApiKey" (
+      id text PRIMARY KEY,
+      "tenantId" text NOT NULL REFERENCES "Tenant"(id) ON DELETE CASCADE,
+      name text NOT NULL,
+      "keyHash" text NOT NULL UNIQUE,
+      "lastUsedAt" timestamptz,
+      "createdAt" timestamptz NOT NULL DEFAULT now()
+    )`;
+  await sql`CREATE INDEX IF NOT EXISTS "ApiKey_tenantId_idx" ON "ApiKey"("tenantId")`;
   // Recover jobs orphaned by container restarts before claimedAt existed.
   const legacy = await sql`
     UPDATE "Stream" SET status = 'QUEUED'
