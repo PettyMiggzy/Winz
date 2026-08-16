@@ -108,6 +108,8 @@ async function processOne(s: QueuedStream): Promise<void> {
       if (r2Configured) {
         storageKey = `clips/${s.tenantId}/${s.id}/${clipId}.mp4`;
         await uploadFile(storageKey, c.file, "video/mp4");
+      } else {
+        console.warn(`[${s.id}] R2 not configured — clip saved locally only: ${c.file}`);
       }
       await sql`
         INSERT INTO "Clip"
@@ -133,6 +135,11 @@ export async function runPoller(intervalMs = 5000): Promise<void> {
     const host = new URL(process.env.DATABASE_URL ?? "").host;
     console.info(`[winclipz-worker] database host: ${host}`);
   } catch { /* ignore */ }
+  console.info(
+    r2Configured
+      ? `[winclipz-worker] R2: configured (bucket ${process.env.R2_BUCKET})`
+      : "[winclipz-worker] R2: NOT CONFIGURED — clips will be stranded on this worker's local disk!"
+  );
   await ensureSchema();
   console.info("[winclipz-worker] polling for QUEUED streams…");
   let stop = false;
