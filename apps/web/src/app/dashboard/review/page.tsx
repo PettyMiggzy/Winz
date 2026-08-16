@@ -1,9 +1,9 @@
 import { Topbar } from "@/components/dashboard/Topbar";
 import { ReviewQueue } from "@/components/dashboard/ReviewQueue";
-import { clips } from "@/lib/mock";
+import { getReviewClips } from "@/server/store";
 
-export default function ReviewPage() {
-  const toReview = clips.filter((c) => c.status === "review");
+export default async function ReviewPage() {
+  const toReview = await getReviewClips();
   return (
     <>
       <Topbar

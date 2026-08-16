@@ -75,10 +75,48 @@ API key stored in the repo-root `.env` (never commit it). The key is only
 needed to *generate* assets — the deployed site serves them as static files and
 does not need the key at runtime.
 
+## Backend (wired)
+
+The app now has a real backend layer that runs with **zero config** (seed
+fallback) and becomes fully live when you add a database + Kick credentials.
+
+### Data layer
+- `prisma/schema.prisma` — the multi-tenant data model (Tenant, User,
+  SocialAccount, Stream, Clip, Post, WebhookEvent). Source of truth.
+- `src/server/db.ts` — lazy Prisma client; only connects when `DATABASE_URL` is set.
+- `src/server/store.ts` — the single data-access layer every page/route uses.
+  Reads Prisma when a DB is configured, otherwise serves seed data.
+
+Enable the database:
+```bash
+# set DATABASE_URL in .env.local (Postgres — Neon/Supabase/your own)
+npm run db:push      # create the schema
+```
+
+### API routes
+| Route | What it does |
+|-------|--------------|
+| `GET /api/health` | Liveness + reports DB/Kick config state |
+| `POST /api/webhooks/kick` | Kick event receiver — **verifies RSA-SHA256 signature**, dedupes by message id, reacts to `livestream.status.updated` (stream-end trigger) |
+| `POST /api/clips/[id]/decision` | Approve/skip a clip (persists when DB is set) |
+| `GET /api/auth/kick/start` | Begins Kick OAuth 2.1 (PKCE, CSRF state in httpOnly cookies) |
+| `GET /api/auth/kick/callback` | Validates state, exchanges code for tokens |
+
+`src/lib/kick.ts` holds the Kick integration (OAuth URLs, PKCE, token exchange,
+app tokens, and webhook signature verification). The signature logic is unit
+tested — `npm test` (5 checks, real RSA keypair).
+
+### What's still stubbed
+- **The clip pipeline itself** (capture → transcribe → detect → render → post)
+  runs on the worker, not here — that's the next build, and it lives on your
+  server, not Vercel. The webhook's stream-end handler currently logs where the
+  job would enqueue.
+- **TikTok/YouTube/Instagram OAuth** — only Kick's flow is wired so far.
+- **Auth/sessions** — the dashboard resolves a single demo tenant for now.
+
 ## Notes
 
-- This is the **front end only**. Buttons that would hit the backend (connect
-  account, approve → post, save settings) are wired to local UI state or links
-  for now; real API wiring is Phase 1 backend work.
 - Legal pages are working drafts to unblock development and platform review —
   have a lawyer review before public launch.
+- Secrets live in `.env.local` (gitignored). The Venice key stays at the repo
+  root `.env`. The deployed site needs no secrets to render (seed fallback).

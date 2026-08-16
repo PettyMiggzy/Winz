@@ -1,11 +1,13 @@
 import { Topbar } from "@/components/dashboard/Topbar";
 import { PlatformBadge, platformLabel } from "@/components/PlatformBadge";
 import { IconCheck, IconLink } from "@/components/Icons";
-import { accounts, type Platform } from "@/lib/mock";
+import { type Platform } from "@/lib/mock";
+import { getAccounts } from "@/server/store";
 
 const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
 
-export default function AccountsPage() {
+export default async function AccountsPage() {
+  const accounts = await getAccounts();
   return (
     <>
       <Topbar

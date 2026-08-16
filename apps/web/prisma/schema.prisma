@@ -1,0 +1,162 @@
+// Winz data model — multi-tenant from day one.
+// Postgres in production (Neon/Supabase). Runtime falls back to seed data when
+// DATABASE_URL is unset (see src/server/db.ts), so the app runs with zero config.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Platform {
+  TIKTOK
+  YOUTUBE
+  INSTAGRAM
+  KICK
+}
+
+enum AccountRole {
+  MAIN
+  CLIPS
+}
+
+enum StreamStatus {
+  LIVE
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum ClipStatus {
+  PENDING // awaiting review
+  APPROVED
+  SCHEDULED
+  POSTED
+  SKIPPED
+}
+
+enum PostStatus {
+  SCHEDULED
+  POSTING
+  POSTED
+  FAILED
+}
+
+model Tenant {
+  id        String          @id @default(cuid())
+  name      String
+  kickSlug  String?         @unique
+  createdAt DateTime        @default(now())
+  users     User[]
+  accounts  SocialAccount[]
+  streams   Stream[]
+  clips     Clip[]
+  posts     Post[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model SocialAccount {
+  id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  platform       Platform
+  role           AccountRole @default(MAIN)
+  handle         String
+  externalId     String?
+  connected      Boolean     @default(false)
+  followers      Int?
+  // Tokens are encrypted at rest in production (app-layer). Never logged.
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  createdAt      DateTime    @default(now())
+  posts          Post[]
+
+  @@unique([tenantId, platform, handle])
+  @@index([tenantId])
+}
+
+model Stream {
+  id              String       @id @default(cuid())
+  tenantId        String
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kickVideoId     String?
+  title           String
+  status          StreamStatus @default(LIVE)
+  startedAt       DateTime     @default(now())
+  endedAt         DateTime?
+  durationSec     Int?
+  momentsDetected Int          @default(0)
+  clips           Clip[]
+
+  @@index([tenantId])
+}
+
+model Clip {
+  id                String     @id @default(cuid())
+  tenantId          String
+  tenant            Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  streamId          String
+  stream            Stream     @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  title             String
+  hook              String?
+  durationSec       Int
+  score             Int        @default(0)
+  signal            String?
+  status            ClipStatus @default(PENDING)
+  assignedPlatform  Platform?
+  flaggedMusic      Boolean    @default(false)
+  storageKey        String?
+  startMs           Int?
+  endMs             Int?
+  createdAt         DateTime   @default(now())
+  posts             Post[]
+
+  @@index([tenantId, status])
+  @@index([streamId])
+}
+
+model Post {
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clipId       String
+  clip         Clip          @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  accountId    String
+  account      SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  platform     Platform
+  status       PostStatus    @default(SCHEDULED)
+  scheduledFor DateTime?
+  postedAt     DateTime?
+  externalId   String?
+  externalUrl  String?
+  views        Int?
+  likes        Int?
+  createdAt    DateTime      @default(now())
+
+  @@index([tenantId])
+  @@index([clipId])
+}
+
+// Idempotency + audit for inbound platform webhooks (Kick stream events, etc.)
+model WebhookEvent {
+  id         String   @id @default(cuid())
+  source     String // "kick"
+  kind       String // "livestream.status.updated"
+  messageId  String   @unique
+  payload    Json
+  receivedAt DateTime @default(now())
+}

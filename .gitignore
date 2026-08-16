@@ -9,6 +9,11 @@ next-env.d.ts
 *.tsbuildinfo
 *.log
 .DS_Store
-tmp/
-clips/
-vods/
+# Worker output dirs — root-anchored so they don't clash with source dirs
+# (e.g. the dashboard/clips route). Do NOT use bare `clips/`.
+/tmp/
+/clips/
+/vods/
+/apps/worker/clips/
+/apps/worker/vods/
+/apps/worker/tmp/

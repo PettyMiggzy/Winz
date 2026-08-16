@@ -20,8 +20,19 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
   const pending = initial.filter((c) => decisions[c.id] === "pending");
   const approved = initial.filter((c) => decisions[c.id] === "approved").length;
 
-  const set = (id: string, d: Decision) =>
+  const set = (id: string, d: Decision) => {
     setDecisions((prev) => ({ ...prev, [id]: d }));
+    if (d === "pending") return;
+    // Persist the decision. Optimistic — the UI already moved on.
+    fetch(`/api/clips/${id}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        decision: d === "approved" ? "approve" : "skip",
+        platform: assign[id],
+      }),
+    }).catch(() => {});
+  };
 
   return (
     <div>
@@ -33,11 +44,21 @@ export function ReviewQueue({ initial }: { initial: Clip[] }) {
           <IconCheck className="h-3.5 w-3.5 text-brand" /> {approved} approved to post
         </div>
         <button
-          onClick={() => setDecisions((prev) => {
-            const next = { ...prev };
-            for (const c of initial) if (next[c.id] === "pending") next[c.id] = "approved";
-            return next;
-          })}
+          onClick={() => {
+            const toApprove = initial.filter((c) => decisions[c.id] === "pending");
+            setDecisions((prev) => {
+              const next = { ...prev };
+              for (const c of toApprove) next[c.id] = "approved";
+              return next;
+            });
+            for (const c of toApprove) {
+              fetch(`/api/clips/${c.id}/decision`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ decision: "approve", platform: assign[c.id] }),
+              }).catch(() => {});
+            }
+          }}
           className="btn-primary ml-auto"
         >
           Approve all

@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// Always render live so the dashboard reflects the database once configured.
+export const dynamic = "force-dynamic";
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-ink-950">

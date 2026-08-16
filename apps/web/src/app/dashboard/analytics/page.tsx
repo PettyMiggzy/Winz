@@ -1,11 +1,13 @@
 import { Topbar } from "@/components/dashboard/Topbar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { PlatformBadge, platformLabel } from "@/components/PlatformBadge";
-import { clips, viewsSpark, type Platform } from "@/lib/mock";
+import { type Platform } from "@/lib/mock";
+import { getClips, getStats } from "@/server/store";
 
 const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
+  const [clips, stats] = await Promise.all([getClips(), getStats()]);
   const posted = clips.filter((c) => c.status === "posted");
   const top = [...posted].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
 
@@ -21,7 +23,7 @@ export default function AnalyticsPage() {
       <Topbar title="Analytics" subtitle="What's working — and what Winz should clip more of." />
       <div className="space-y-8 px-5 py-6 sm:px-8">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total views" value="1.02M" delta="+34%" spark={viewsSpark} />
+          <StatCard label="Total views" value="1.02M" delta="+34%" spark={stats.spark} />
           <StatCard label="Avg. views / clip" value="26.9K" hint="last 30 days" />
           <StatCard label="Profile clicks" value="12.4K" delta="+21%" />
           <StatCard label="Follows from clips" value="3,180" hint="→ Kick + socials" />

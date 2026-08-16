@@ -4,9 +4,10 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ClipThumb } from "@/components/dashboard/ClipThumb";
 import { PlatformBadge } from "@/components/PlatformBadge";
 import { IconArrow, IconInbox, IconClock, IconCheck } from "@/components/Icons";
-import { stats, streams, clips, viewsSpark } from "@/lib/mock";
+import { getStats, getStreams, getClips } from "@/server/store";
 
-export default function Overview() {
+export default async function Overview() {
+  const [stats, streams, clips] = await Promise.all([getStats(), getStreams(), getClips()]);
   const recentPosted = clips.filter((c) => c.status === "posted").slice(0, 4);
   const reviewCount = clips.filter((c) => c.status === "review").length;
 
@@ -35,7 +36,7 @@ export default function Overview() {
         {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard label="Clips this week" value={String(stats.clipsThisWeek)} hint="across 3 platforms" />
-          <StatCard label="Views this week" value="512.4K" delta={`+${stats.viewsDeltaPct}%`} spark={viewsSpark} />
+          <StatCard label="Views this week" value="512.4K" delta={`+${stats.viewsDeltaPct}%`} spark={stats.spark} />
           <StatCard label="Profile clicks" value="4,120" hint="→ your Kick channel" />
           <StatCard label="New followers" value="1,340" delta="+18%" />
         </div>
