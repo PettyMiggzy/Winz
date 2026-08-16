@@ -10,7 +10,7 @@ import {
 const NAV = [
   { href: "/dashboard", label: "Overview", Icon: IconGrid, exact: true },
   { href: "/dashboard/upload", label: "Upload", Icon: IconBolt },
-  { href: "/dashboard/review", label: "Review queue", Icon: IconInbox, badge: 4 },
+  { href: "/dashboard/review", label: "Review queue", Icon: IconInbox },
   { href: "/dashboard/clips", label: "Clips", Icon: IconScissors },
   { href: "/dashboard/accounts", label: "Accounts", Icon: IconLink },
   { href: "/dashboard/onboarding", label: "Account setup", Icon: IconCheck },
