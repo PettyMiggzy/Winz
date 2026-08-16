@@ -163,12 +163,13 @@ export interface Account {
 }
 
 export const accounts: Account[] = [
-  { id: "a1", platform: "tiktok", handle: "@winslowbankz", connected: true, followers: 18400, postsThisWeek: 14, role: "main", warmupState: "ready" },
-  { id: "a2", platform: "tiktok", handle: "@winslowclips", connected: true, followers: 6200, postsThisWeek: 12, role: "clips", warmupState: "ready" },
+  // TikTok + Instagram: freshly created — need connecting + warm-up.
+  { id: "a1", platform: "tiktok", handle: "@winslowbankz", connected: false, role: "main", warmupState: "new" },
+  { id: "a2", platform: "tiktok", handle: "@winslowclips", connected: false, role: "clips", warmupState: "new" },
+  { id: "a5", platform: "instagram", handle: "@winslowbankzz", connected: false, role: "main", warmupState: "new" },
+  { id: "a6", platform: "instagram", handle: "@winslowclips", connected: false, role: "clips", warmupState: "new" },
+  // YouTube: established channel with a back-catalog — already live.
   { id: "a3", platform: "youtube", handle: "WinslowBankz", connected: true, followers: 9100, postsThisWeek: 10, role: "main", warmupState: "ready" },
-  { id: "a4", platform: "youtube", handle: "Winslow Clips", connected: true, followers: 640, postsThisWeek: 4, role: "clips", warmupState: "warming", warmupDay: 6 },
-  { id: "a5", platform: "instagram", handle: "@winslowbankz", connected: true, followers: 5400, postsThisWeek: 9, role: "main", warmupState: "ready" },
-  { id: "a6", platform: "instagram", handle: "@winslow.clips", connected: false, role: "clips", warmupState: "new" },
 ];
 
 export const stats = {

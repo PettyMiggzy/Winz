@@ -4,15 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import {
-  IconGrid, IconInbox, IconScissors, IconLink, IconChart, IconSettings, IconBolt,
+  IconGrid, IconInbox, IconScissors, IconLink, IconChart, IconSettings, IconBolt, IconCheck,
 } from "@/components/Icons";
 
 const NAV = [
   { href: "/dashboard", label: "Overview", Icon: IconGrid, exact: true },
+  { href: "/dashboard/upload", label: "Upload", Icon: IconBolt },
   { href: "/dashboard/review", label: "Review queue", Icon: IconInbox, badge: 4 },
   { href: "/dashboard/clips", label: "Clips", Icon: IconScissors },
   { href: "/dashboard/accounts", label: "Accounts", Icon: IconLink },
-  { href: "/dashboard/onboarding", label: "Account setup", Icon: IconBolt },
+  { href: "/dashboard/onboarding", label: "Account setup", Icon: IconCheck },
   { href: "/dashboard/analytics", label: "Analytics", Icon: IconChart },
   { href: "/dashboard/settings", label: "Settings", Icon: IconSettings },
 ];

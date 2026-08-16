@@ -137,10 +137,10 @@ export function OnboardingWizard() {
               </ul>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Link href="/api/auth/kick/start" className="btn-primary"><PlatformBadge platform="kick" /> Connect Kick</Link>
-              <button className="btn-ghost"><PlatformBadge platform="tiktok" /> Connect TikTok</button>
-              <button className="btn-ghost"><PlatformBadge platform="youtube" /> Connect YouTube</button>
-              <button className="btn-ghost"><PlatformBadge platform="instagram" /> Connect Instagram</button>
+              <a href="/api/auth/kick/start" className="btn-primary"><PlatformBadge platform="kick" /> Connect Kick</a>
+              <a href="/api/auth/tiktok/start" className="btn-ghost"><PlatformBadge platform="tiktok" /> Connect TikTok</a>
+              <a href="/api/auth/instagram/start" className="btn-ghost"><PlatformBadge platform="instagram" /> Connect Instagram</a>
+              <button className="btn-ghost" disabled title="Coming soon"><PlatformBadge platform="youtube" /> Connect YouTube</button>
             </div>
             <p className="text-xs text-fog">Then just go live — Winz clips, brands, and posts on the ramp above.</p>
           </Panel>

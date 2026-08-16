@@ -11,8 +11,12 @@ const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
 // splitting Shorts views across channels hurts monetization.
 const SLOT_CAP: Record<Platform, number> = { tiktok: 4, youtube: 2, instagram: 4 };
 
-export default async function AccountsPage() {
-  const accounts = await getAccounts();
+export default async function AccountsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ connected?: string; error?: string; provider?: string }>;
+}) {
+  const [accounts, sp] = await Promise.all([getAccounts(), searchParams]);
   return (
     <>
       <Topbar
@@ -20,6 +24,17 @@ export default async function AccountsPage() {
         subtitle="Connect the accounts Winz posts to. Different clips go to each — never the same clip twice."
       />
       <div className="space-y-8 px-5 py-6 sm:px-8">
+        {sp.connected && (
+          <div className="rounded-xl border border-brand/30 bg-brand/5 px-4 py-3 text-sm text-brand">
+            <IconCheck className="mr-1.5 inline h-4 w-4" /> Connected {sp.connected} — it&apos;ll start warming up automatically.
+          </div>
+        )}
+        {sp.error && (
+          <div className="rounded-xl border border-magenta/30 bg-magenta/5 px-4 py-3 text-sm text-magenta-soft">
+            Couldn&apos;t connect {sp.provider ?? "the account"}
+            {sp.error === "not_configured" ? " — that platform isn't wired up yet." : ` (${sp.error}).`}
+          </div>
+        )}
         {/* Setup CTA */}
         <div className="card flex flex-col items-start justify-between gap-4 p-5 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3">
@@ -104,7 +119,7 @@ function AccountCard({ account: a, platform: p }: { account: Account; platform: 
             )}
           </div>
         </div>
-        <WarmupStatus state={a.warmupState} connected={a.connected} />
+        <WarmupStatus state={a.warmupState} connected={a.connected} platform={p} />
       </div>
 
       {a.warmupState === "warming" && (
@@ -124,12 +139,14 @@ function AccountCard({ account: a, platform: p }: { account: Account; platform: 
   );
 }
 
-function WarmupStatus({ state, connected }: { state: Account["warmupState"]; connected: boolean }) {
+function WarmupStatus({ state, connected, platform }: { state: Account["warmupState"]; connected: boolean; platform: Platform }) {
   if (!connected) {
+    // TikTok/Instagram go through OAuth; YouTube (Google) + others route to setup.
+    const href = platform === "tiktok" || platform === "instagram" ? `/api/auth/${platform}/start` : "/dashboard/onboarding";
     return (
-      <Link href="/dashboard/onboarding" className="btn-ghost text-sm">
+      <a href={href} className="btn-ghost text-sm">
         <IconLink className="h-4 w-4" /> Connect
-      </Link>
+      </a>
     );
   }
   if (state === "warming") {
