@@ -108,6 +108,11 @@ async function processOne(s: QueuedStream): Promise<void> {
 }
 
 export async function runPoller(intervalMs = 5000): Promise<void> {
+  // Log which DB host we're on (no credentials) so DB mismatches are obvious.
+  try {
+    const host = new URL(process.env.DATABASE_URL ?? "").host;
+    console.info(`[winclipz-worker] database host: ${host}`);
+  } catch { /* ignore */ }
   await ensureSchema();
   console.info("[winclipz-worker] polling for QUEUED streams…");
   let stop = false;
