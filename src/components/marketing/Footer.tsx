@@ -15,7 +15,7 @@ export function Footer() {
           </div>
           <div className="grid grid-cols-2 gap-10 sm:grid-cols-3">
             <FooterCol title="Product" links={[
-              { href: "/#how", label: "How it works" },
+              { href: "/how-to", label: "How to use it" },
               { href: "/#features", label: "Features" },
               { href: "/#pricing", label: "Pricing" },
               { href: "/dashboard", label: "Dashboard demo" },
