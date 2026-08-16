@@ -29,7 +29,9 @@ export function getProvider(id: string): ProviderConfig | null {
       clientId: process.env.TIKTOK_CLIENT_KEY,
       clientSecret: process.env.TIKTOK_CLIENT_SECRET,
       redirectUri: process.env.TIKTOK_REDIRECT_URI,
-      scope: "user.info.basic,video.upload,video.publish",
+      // Must match EXACTLY what the app/sandbox has enabled — TikTok errors
+      // with "scope" otherwise. Override without a deploy via TIKTOK_SCOPES.
+      scope: process.env.TIKTOK_SCOPES ?? "user.info.basic,video.upload,video.publish",
     };
   }
   if (id === "instagram") {
