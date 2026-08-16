@@ -7,10 +7,12 @@ screens, and the creator dashboard (currently running on mock data).
 - **Styling:** Tailwind CSS 3, dark-first design system in `src/app/globals.css`
 - **Node:** 24 LTS recommended (works on ≥20.9)
 
+The app lives at the **repo root** (not a subfolder), so Vercel deploys it with
+zero configuration.
+
 ## Run locally
 
 ```bash
-cd apps/web
 npm install
 npm run dev      # http://localhost:3000
 npm run build && npm start   # production build
@@ -20,21 +22,22 @@ npm run build && npm start   # production build
 
 ### Vercel (recommended for the front end)
 
-This app is a perfect fit for Vercel. Two ways to do it:
-
 1. **Import the repo** at vercel.com → New Project.
-2. **Set the Root Directory to `apps/web`** (Project → Settings → General →
-   Root Directory). Vercel auto-detects Next.js from there — no other config.
+2. Vercel auto-detects Next.js at the repo root — **leave Root Directory empty
+   (`./`)**. No other config.
 3. Set the Node.js version to **24.x** (Settings → General → Node.js Version).
 
 That's it. Every push to the branch redeploys.
+
+> If you previously set the Root Directory to `apps/web`, clear it back to `./`
+> — the app is no longer in a subfolder.
 
 > **Why Vercel for this and not the video worker:** Vercel is ideal for the
 > dashboard, marketing site, and (later) the Kick webhook receiver. It is *not*
 > suitable for the heavy clip pipeline — downloading VODs, running Whisper, and
 > rendering with FFmpeg — because of its request-body cap, small `/tmp`, and
 > stateless functions. That worker belongs on your own server / a VPS. See
-> `../../ARCHITECTURE.md` and `../../docs/STRATEGY.md`.
+> `../ARCHITECTURE.md` and `../docs/STRATEGY.md`.
 
 ### Self-hosting on your own server (alternative)
 

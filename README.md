@@ -42,19 +42,20 @@ strategy locked, build starting.
 
 ## Front end (built)
 
-The marketing site + creator dashboard is live in [`apps/web`](apps/web) —
-Next.js 15 + Tailwind, dark-first, fully responsive, running on mock data.
-Includes the landing page, pricing, FAQ, auth screens, draft legal pages
-(needed for the platform audits), and a dashboard with an interactive review
-queue, clips library, accounts, analytics, and settings.
-
-Deploy: import the repo on Vercel and set the **Root Directory to `apps/web`**
-(Node 24). Or self-host with `npm run build && npm start`. See
-[`apps/web/README.md`](apps/web/README.md).
+The marketing site + creator dashboard is the Next.js 15 + Tailwind app **at the
+repo root** — dark-first, fully responsive, with a real backend layer that falls
+back to seed data when no database is set. Includes the landing page, pricing,
+FAQ, auth screens, draft legal pages (needed for the platform audits), and a
+dashboard with an interactive review queue, clips library, accounts, analytics,
+and settings. Backend details in [`docs/WEB.md`](docs/WEB.md).
 
 ```bash
-cd apps/web && npm install && npm run dev   # http://localhost:3000
+npm install && npm run dev   # http://localhost:3000
 ```
+
+Deploy: **import the repo on Vercel — it auto-detects Next.js at the root, no
+Root Directory setting needed.** Set Node.js Version to 24.x. Or self-host with
+`npm run build && npm start`.
 
 ## Repo layout
 
@@ -62,13 +63,20 @@ cd apps/web && npm install && npm run dev   # http://localhost:3000
 Winz/
 ├── README.md               ← you are here
 ├── ARCHITECTURE.md         ← technical system design
-├── apps/
-│   └── web/                ← Next.js marketing site + dashboard (built)
+├── package.json            ← the Next.js app lives at the root (deploys to Vercel as-is)
+├── src/                     ← app, components, server data layer, lib
+├── prisma/                  ← multi-tenant schema
+├── public/                  ← brand art (Venice-generated) + icons
+├── test/                    ← unit tests (Kick webhook signature)
 ├── docs/
-│   ├── STRATEGY.md         ← product strategy + build sequence
-│   ├── BUSINESS-MODEL.md   ← the Adin/N3on reality check
+│   ├── WEB.md               ← front-end + backend/deploy guide
+│   ├── STRATEGY.md          ← product strategy + build sequence
+│   ├── BUSINESS-MODEL.md    ← the Adin/N3on reality check
 │   ├── QUESTIONS-FOR-WINSLOW.md
-│   └── research/           ← 29 research docs (3 sweeps) + index
-├── .env.example            ← required env vars (secrets live in gitignored .env)
+│   └── research/            ← 29 research docs (3 sweeps) + index
+├── .env.example             ← env vars (secrets live in gitignored .env)
 └── .gitignore
 ```
+
+> The video **worker** (Phase 1 next) will live in a `worker/` subfolder — it
+> runs on your own server, not Vercel, so it doesn't affect this deploy.
