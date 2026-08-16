@@ -106,6 +106,8 @@ model Stream {
   kickVideoId     String?
   title           String
   status          StreamStatus @default(LIVE)
+  sourceKey       String? // object key in R2
+  sourceUrl       String? // public URL the worker fetches
   startedAt       DateTime     @default(now())
   endedAt         DateTime?
   durationSec     Int?

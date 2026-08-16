@@ -35,13 +35,25 @@ export function UploadForm() {
       const res = await fetch("/api/uploads/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, styleHint, layout }),
+        body: JSON.stringify({ filename: file.name, contentType: file.type, styleHint, layout }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "upload failed");
-      // In production: PUT the file to data.uploadUrl (R2), then confirm.
+
+      if (data.uploadUrl) {
+        // Upload straight to R2, then mark the stream queued for the worker.
+        const put = await fetch(data.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type || "video/mp4" },
+          body: file,
+        });
+        if (!put.ok) throw new Error(`upload to storage failed (${put.status})`);
+        await fetch(`/api/uploads/${data.streamId}/complete`, { method: "POST" });
+        setMsg("Queued — the engine will cut, title, and caption your clips.");
+      } else {
+        setMsg(data.note ?? "Queued — the engine will cut, title, and caption your clips.");
+      }
       setStatus("queued");
-      setMsg(data.note ?? "Queued — the engine will cut, title, and caption your clips.");
     } catch (e) {
       setStatus("error");
       setMsg(e instanceof Error ? e.message : "Something went wrong.");

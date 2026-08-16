@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/server/db";
+import { r2Configured, presignPut, publicUrl } from "@/server/r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,13 +8,10 @@ export const dynamic = "force-dynamic";
 const LAYOUTS = ["crop", "blurpad"] as const;
 
 /**
- * Register an upload and queue it for the clip engine.
- *
- * Flow in production: the browser gets a presigned R2 URL, PUTs the file
- * straight to storage (Vercel's 4.5MB body limit rules out proxying), then the
- * worker picks up the QUEUED stream, processes it, and clips land in the review
- * queue. Here we create the Stream record; R2 presigning + the worker are wired
- * on deploy. In seed mode (no DB) we return a mock id so the UI flow works.
+ * Register an upload and (when R2 is configured) presign a direct browser→R2
+ * PUT. The client uploads the file, then calls /api/uploads/[id]/complete to
+ * mark the stream QUEUED; the worker polls for QUEUED streams and processes
+ * them. In seed mode (no DB) we return a mock id so the UI flow still works.
  */
 export async function POST(req: Request) {
   let body: unknown;
@@ -25,11 +23,7 @@ export async function POST(req: Request) {
   if (typeof body !== "object" || body === null) {
     return NextResponse.json({ error: "body must be an object" }, { status: 400 });
   }
-  const { filename, styleHint, layout } = body as {
-    filename?: unknown;
-    styleHint?: unknown;
-    layout?: unknown;
-  };
+  const { filename, contentType, styleHint, layout } = body as Record<string, unknown>;
   if (typeof filename !== "string" || !filename.trim()) {
     return NextResponse.json({ error: "filename is required" }, { status: 400 });
   }
@@ -38,30 +32,42 @@ export async function POST(req: Request) {
   }
 
   const title = filename.replace(/\.[a-z0-9]+$/i, "").slice(0, 120);
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80);
+  const key = `uploads/winslowbankz/${Date.now().toString(36)}-${safeName}`;
   const prisma = getPrisma();
 
   if (prisma) {
+    const uploadUrl = r2Configured
+      ? await presignPut(key, typeof contentType === "string" ? contentType : "video/mp4")
+      : null;
     const stream = await prisma.stream.create({
       data: {
-        // TODO: resolve the authenticated tenant. Demo tenant for now.
-        tenant: { connectOrCreate: { where: { kickSlug: "winslowbankz" }, create: { name: "WinslowBankz", kickSlug: "winslowbankz" } } },
+        tenant: {
+          connectOrCreate: {
+            where: { kickSlug: "winslowbankz" },
+            create: { name: "WinslowBankz", kickSlug: "winslowbankz" },
+          },
+        },
         title,
-        status: "PROCESSING",
+        status: uploadUrl ? "UPLOADING" : "QUEUED",
+        sourceKey: key,
+        sourceUrl: r2Configured ? publicUrl(key) : null,
       },
     });
-    // TODO: presign an R2 PUT for `filename` and return uploadUrl; enqueue the
-    // process job once the client confirms the upload completed.
-    return NextResponse.json({ ok: true, streamId: stream.id, uploadUrl: null, queued: true });
+    return NextResponse.json({
+      ok: true,
+      streamId: stream.id,
+      uploadUrl,
+      styleHint: typeof styleHint === "string" ? styleHint : undefined,
+      layout: typeof layout === "string" ? layout : "crop",
+    });
   }
 
-  // Seed mode
+  // Seed mode — no DB configured.
   return NextResponse.json({
     ok: true,
     streamId: `demo_${Date.now().toString(36)}`,
     uploadUrl: null,
-    queued: false,
-    note: "Demo mode — connect a database + the worker to process real uploads.",
-    styleHint: typeof styleHint === "string" ? styleHint : undefined,
-    layout: typeof layout === "string" ? layout : "crop",
+    note: "Demo mode — connect a database + R2 + the worker to process real uploads.",
   });
 }
