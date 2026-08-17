@@ -23,6 +23,8 @@ export interface PublishInput {
   mediaUrl: string;
   title: string;
   caption: string;
+  /** Per-post options chosen at approval (TikTok privacy + toggles). */
+  meta?: Record<string, unknown>;
 }
 
 export interface PublishResult {
@@ -53,19 +55,34 @@ async function hostMedia(mediaUrl: string): Promise<string> {
 }
 
 /** Build the platform-specific `target` block. */
-function targetFor(platform: Platform, title: string): Record<string, unknown> {
+function targetFor(
+  platform: Platform,
+  title: string,
+  meta?: Record<string, unknown>
+): Record<string, unknown> {
   switch (platform) {
-    case "tiktok":
+    case "tiktok": {
+      const m = (meta ?? {}) as {
+        privacyLevel?: string;
+        disableComment?: boolean;
+        disableDuet?: boolean;
+        disableStitch?: boolean;
+        brandContent?: boolean;
+        brandOrganic?: boolean;
+        isAiGenerated?: boolean;
+      };
       return {
         targetType: "tiktok",
-        privacyLevel: "PUBLIC_TO_EVERYONE",
-        disabledComments: false,
-        disabledDuet: false,
-        disabledStitch: false,
-        isBrandedContent: false,
-        isYourBrand: false,
-        isAiGenerated: false,
+        // Honor the user's choice; fail closed to private if missing.
+        privacyLevel: m.privacyLevel ?? "SELF_ONLY",
+        disabledComments: m.disableComment ?? false,
+        disabledDuet: m.disableDuet ?? false,
+        disabledStitch: m.disableStitch ?? false,
+        isBrandedContent: m.brandContent ?? false,
+        isYourBrand: m.brandOrganic ?? false,
+        isAiGenerated: m.isAiGenerated ?? false,
       };
+    }
     case "instagram":
       return { targetType: "instagram", mediaType: "reel" };
     case "youtube":
@@ -89,7 +106,7 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
         mediaUrls: [hosted],
         platform: input.platform,
       },
-      target: targetFor(input.platform, input.title),
+      target: targetFor(input.platform, input.title, input.meta),
     },
   };
   const res = await fetch(`${BASE}/v2/posts`, {

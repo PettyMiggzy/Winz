@@ -64,12 +64,19 @@ async function accessTokenFor(accountId: string): Promise<string> {
     expires_in?: number;
   };
   if (!tok.access_token) throw new Error("tiktok refresh returned no access_token");
-  await sql`
+  // CAS on the old refresh token so a concurrent refresh (multiple workers, or a
+  // re-connect) can't clobber a newer rotated token with a now-dead one.
+  const upd = await sql`
     UPDATE "SocialAccount"
     SET "accessToken" = ${tok.access_token},
         "refreshToken" = ${tok.refresh_token ?? a.refreshToken},
         "tokenExpiresAt" = ${tok.expires_in ? new Date(Date.now() + tok.expires_in * 1000) : null}
-    WHERE id = ${a.id}`;
+    WHERE id = ${a.id} AND "refreshToken" = ${a.refreshToken}`;
+  if (upd.count === 0) {
+    // Someone else refreshed first — re-read and use their fresh token.
+    const [again] = await sql<Account[]>`SELECT "accessToken" FROM "SocialAccount" WHERE id = ${a.id}`;
+    if (again?.accessToken) return again.accessToken;
+  }
   return tok.access_token;
 }
 
@@ -90,12 +97,27 @@ export async function publishToTikTok(input: {
   const token = await accessTokenFor(input.socialAccountId);
   const video = await fetchVideo(input.mediaUrl);
 
-  const chunkSize = video.length; // single-chunk upload (clips are small)
+  // TikTok FILE_UPLOAD chunk rules: single chunk is only valid for files <= 64MB;
+  // larger files must be split into 5MB–64MB chunks. Clips are short (usually
+  // well under 64MB), but handle big ones correctly instead of sending an
+  // invalid single chunk. Max total 4GB.
+  const MB = 1024 * 1024;
+  if (video.length > 4096 * MB) throw new Error("clip exceeds TikTok 4GB limit");
+  const SINGLE_MAX = 64 * MB;
+  let chunkSize: number;
+  let totalChunks: number;
+  if (video.length <= SINGLE_MAX) {
+    chunkSize = video.length;
+    totalChunks = 1;
+  } else {
+    chunkSize = 32 * MB; // within the 5–64MB window
+    totalChunks = Math.ceil(video.length / chunkSize);
+  }
   const sourceInfo = {
     source: "FILE_UPLOAD",
     video_size: video.length,
     chunk_size: chunkSize,
-    total_chunk_count: 1,
+    total_chunk_count: totalChunks,
   };
 
   const isDirect = MODE === "direct";
@@ -134,15 +156,20 @@ export async function publishToTikTok(input: {
   const uploadUrl = initJson.data?.upload_url;
   if (!uploadUrl) throw new Error("tiktok init returned no upload_url");
 
-  const put = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "video/mp4",
-      "Content-Range": `bytes 0-${video.length - 1}/${video.length}`,
-    },
-    body: video,
-  });
-  if (!put.ok) throw new Error(`tiktok upload ${put.status}`);
+  // Upload each chunk with the correct Content-Range (single chunk = whole file).
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * chunkSize;
+    const end = Math.min(start + chunkSize, video.length);
+    const put = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "video/mp4",
+        "Content-Range": `bytes ${start}-${end - 1}/${video.length}`,
+      },
+      body: video.subarray(start, end),
+    });
+    if (!put.ok) throw new Error(`tiktok upload chunk ${i + 1}/${totalChunks} ${put.status}`);
+  }
 
   return { externalId: initJson.data?.publish_id };
 }

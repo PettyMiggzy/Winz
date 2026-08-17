@@ -77,17 +77,19 @@ export async function publishToInstagram(input: {
   if (!containerId) throw new Error("ig media returned no container id");
 
   // 2. wait for processing (IG downloads + transcodes the video)
-  for (let i = 0; i < 30; i++) {
+  let finished = false;
+  for (let i = 0; i < 30 && !finished; i++) {
     await sleep(6000);
     const st = await fetch(
-      `${GRAPH}/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`
+      `${GRAPH}/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`
     );
     if (!st.ok) continue;
-    const { status_code } = (await st.json()) as { status_code?: string };
-    if (status_code === "FINISHED") break;
-    if (status_code === "ERROR") throw new Error("ig container processing failed");
-    if (i === 29) throw new Error("ig container processing timed out (~3 min)");
+    const body = (await st.json()) as { status_code?: string; status?: string };
+    if (body.status_code === "FINISHED") finished = true;
+    else if (body.status_code === "ERROR") throw new Error(`ig container failed: ${body.status ?? "ERROR"}`);
   }
+  // A failed final poll must NOT fall through and publish an unfinished container.
+  if (!finished) throw new Error("ig container processing timed out (~3 min)");
 
   // 3. publish
   const pub = await fetch(`${GRAPH}/${igId}/media_publish`, {

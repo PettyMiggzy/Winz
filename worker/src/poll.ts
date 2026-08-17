@@ -48,7 +48,10 @@ async function ensureSchema(): Promise<void> {
   }
   // Idempotent micro-migrations for columns newer than the base schema.
   await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "claimedAt" timestamptz`;
+  await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "attempts" integer NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "meta" jsonb`;
+  await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "claimedAt" timestamptz`;
+  await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "attempts" integer NOT NULL DEFAULT 0`;
   await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "plan" text NOT NULL DEFAULT 'FREE'`;
   await sql`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordHash" text`;
   await sql`
@@ -77,16 +80,38 @@ async function ensureSchema(): Promise<void> {
   if (legacy.count > 0) console.info(`[winclipz-worker] requeued ${legacy.count} orphaned job(s)`);
 }
 
+const MAX_ATTEMPTS = 3;
+
 /**
  * Requeue jobs whose worker died mid-processing (deploy restarts, OOM). A job
- * claimed >2h ago that's still PROCESSING is presumed dead — safe for our
- * longest streams, and claims are CAS so a live worker can't double-claim.
+ * whose claim heartbeat (claimedAt, refreshed during processing) is >20 min
+ * stale is presumed dead. Jobs past MAX_ATTEMPTS are marked FAILED instead of
+ * looping forever and starving the queue.
  */
 async function reapStale(): Promise<void> {
-  const r = await sql`
+  const dead = await sql`
+    UPDATE "Stream" SET status = 'FAILED'
+    WHERE status = 'PROCESSING'
+      AND "claimedAt" < now() - interval '20 minutes'
+      AND "attempts" >= ${MAX_ATTEMPTS}`;
+  if (dead.count > 0) console.warn(`[winclipz-worker] gave up on ${dead.count} job(s) past ${MAX_ATTEMPTS} attempts`);
+  const requeued = await sql`
     UPDATE "Stream" SET status = 'QUEUED', "claimedAt" = NULL
-    WHERE status = 'PROCESSING' AND "claimedAt" < now() - interval '2 hours'`;
-  if (r.count > 0) console.info(`[winclipz-worker] requeued ${r.count} stale job(s)`);
+    WHERE status = 'PROCESSING' AND "claimedAt" < now() - interval '20 minutes'`;
+  if (requeued.count > 0) console.info(`[winclipz-worker] requeued ${requeued.count} stale job(s)`);
+
+  // Same visibility-timeout recovery for stuck publish jobs (publish is fast —
+  // a POSTING row older than 10 min means the worker died mid-send).
+  const posts = await sql`
+    UPDATE "Post" SET status = 'SCHEDULED', "claimedAt" = NULL
+    WHERE status = 'POSTING' AND "claimedAt" < now() - interval '10 minutes'
+      AND "attempts" < ${MAX_ATTEMPTS}`;
+  if (posts.count > 0) console.info(`[winclipz-worker] requeued ${posts.count} stuck post(s)`);
+  const deadPosts = await sql`
+    UPDATE "Post" SET status = 'FAILED'
+    WHERE status = 'POSTING' AND "claimedAt" < now() - interval '10 minutes'
+      AND "attempts" >= ${MAX_ATTEMPTS}`;
+  if (deadPosts.count > 0) console.warn(`[winclipz-worker] gave up on ${deadPosts.count} stuck post(s)`);
 }
 
 /** Claim the oldest QUEUED stream (CAS on status). Returns null if none. */
@@ -98,7 +123,8 @@ async function claimNext(): Promise<QueuedStream | null> {
   if (found.length === 0) return null;
   const s = found[0];
   const claim = await sql`
-    UPDATE "Stream" SET status = 'PROCESSING', "claimedAt" = now()
+    UPDATE "Stream" SET status = 'PROCESSING', "claimedAt" = now(),
+                       "attempts" = "attempts" + 1
     WHERE id = ${s.id} AND status = 'QUEUED'`;
   return claim.count === 1 ? s : null; // lost the race → try again next tick
 }
@@ -116,7 +142,11 @@ async function processOne(s: QueuedStream): Promise<void> {
       styleHint: s.title,
       maxClipSec: 60,
       layout: "crop",
-      onProgress: (stage, d) => console.info(`[${s.id}] ${stage}${d ? ": " + d : ""}`),
+      onProgress: (stage, d) => {
+        console.info(`[${s.id}] ${stage}${d ? ": " + d : ""}`);
+        // Heartbeat the claim so a legitimately long job isn't reaped as dead.
+        void sql`UPDATE "Stream" SET "claimedAt" = now() WHERE id = ${s.id} AND status = 'PROCESSING'`.catch(() => {});
+      },
     });
 
     for (const c of manifest.clips) {
@@ -141,13 +171,17 @@ async function processOne(s: QueuedStream): Promise<void> {
            ${Math.round(c.end - c.start)}, ${Math.round(c.score)}, ${c.category},
            ${music.flagged}, ${storageKey}, ${Math.round(c.start * 1000)}, ${Math.round(c.end * 1000)})`;
     }
-    await sql`UPDATE "Stream" SET status = 'DONE' WHERE id = ${s.id}`;
+    // Guard the terminal write with status='PROCESSING' so a reaped-and-reclaimed
+    // job can't have its result clobbered by the original (now-zombie) worker.
+    await sql`UPDATE "Stream" SET status = 'DONE' WHERE id = ${s.id} AND status = 'PROCESSING'`;
     console.info(`[${s.id}] done — ${manifest.clips.length} clips`);
   } catch (e) {
-    await sql`UPDATE "Stream" SET status = 'FAILED' WHERE id = ${s.id}`;
+    await sql`UPDATE "Stream" SET status = 'FAILED' WHERE id = ${s.id} AND status = 'PROCESSING'`;
     console.error(`[${s.id}] failed:`, e instanceof Error ? e.message : e);
   } finally {
     await rm(dir, { recursive: true, force: true });
+    // Remove rendered outputs once uploaded to R2 — otherwise WORK_DIR fills up.
+    if (r2Configured) await rm(join(config.workDir, s.tenantId, s.id), { recursive: true, force: true });
   }
 }
 

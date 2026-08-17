@@ -6,12 +6,20 @@
  *    with yt-dlp (bundled in the worker image), merging to mp4.
  */
 import { writeFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { assertPublicUrl } from "./ssrf.ts";
 
 const MEDIA_EXT = /\.(mp4|mov|webm|mkv|m4v)(\?|$)/i;
 const YTDLP = process.env.YTDLP_PATH ?? "yt-dlp";
+// Cap a single source download. Big enough for multi-hour VODs, small enough to
+// stop an attacker pointing us at an endless/huge stream.
+const MAX_BYTES = Number(process.env.MAX_SOURCE_BYTES ?? 8 * 1024 * 1024 * 1024); // 8 GB
+const FETCH_TIMEOUT_MS = Number(process.env.SOURCE_FETCH_TIMEOUT_MS ?? 20 * 60_000); // 20 min
 
 /**
  * Optional cookies for sites that bot-check datacenter IPs (YouTube's "Sign in
@@ -49,12 +57,40 @@ function safeHost(url: string): string {
 }
 
 async function directDownload(url: string, outPath: string): Promise<void> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`fetch source ${res.status}`);
-  await writeFile(outPath, Buffer.from(await res.arrayBuffer()));
+  await assertPublicUrl(url); // SSRF guard
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, redirect: "follow" });
+    if (!res.ok) throw new Error(`fetch source ${res.status}`);
+    const declared = Number(res.headers.get("content-length") ?? 0);
+    if (declared && declared > MAX_BYTES) throw new Error(`source too large (${declared} bytes)`);
+    if (!res.body) throw new Error("no response body");
+
+    // Stream to disk (never buffer a multi-GB VOD in memory), enforcing the cap.
+    let seen = 0;
+    const counter = new TransformStream({
+      transform(chunk, controller) {
+        seen += chunk.byteLength;
+        if (seen > MAX_BYTES) {
+          controller.error(new Error(`source exceeded ${MAX_BYTES} bytes`));
+          ctrl.abort();
+          return;
+        }
+        controller.enqueue(chunk);
+      },
+    });
+    await pipeline(
+      Readable.fromWeb(res.body.pipeThrough(counter) as unknown as ReadableStream),
+      createWriteStream(outPath)
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function ytdlpDownload(url: string, outPath: string): Promise<void> {
+  await assertPublicUrl(url); // SSRF guard — block internal hosts even for yt-dlp
   const cookies = await cookiesFile();
   // Residential proxy (http://user:pass@host:port) — the standard fix for
   // YouTube's datacenter-IP bot checks. Set YTDLP_PROXY to enable.
@@ -67,6 +103,7 @@ async function ytdlpDownload(url: string, outPath: string): Promise<void> {
       "--no-playlist",
       "--no-progress",
       "--retries", "3",
+      "--max-filesize", String(MAX_BYTES),
       "--sleep-requests", "1", // gentler pacing — avoids 429s on repeat runs
       // Residential proxies often terminate TLS with legacy handshakes; yt-dlp
       // errors SSLV3_ALERT_HANDSHAKE_FAILURE without this flag.

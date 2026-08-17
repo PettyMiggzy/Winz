@@ -34,12 +34,13 @@ interface DuePost {
   externalAccountId: string | null; // provider account/profile id (SocialAccount.externalId)
   hasOwnToken: boolean; // account connected via our own OAuth app
   meta: Record<string, unknown> | null; // per-post options chosen at approval
+  attempts: number | null;
 }
 
 /** Claim the oldest due, SCHEDULED post (CAS on status). */
 async function claimNext(): Promise<DuePost | null> {
   const rows = await sql<DuePost[]>`
-    SELECT p.id, p."clipId", p."accountId", p.platform, p.meta,
+    SELECT p.id, p."clipId", p."accountId", p.platform, p.meta, p.attempts,
            c.title, c.hook AS caption, c."storageKey",
            a."externalId" AS "externalAccountId",
            (a."accessToken" IS NOT NULL) AS "hasOwnToken"
@@ -53,10 +54,12 @@ async function claimNext(): Promise<DuePost | null> {
   if (rows.length === 0) return null;
   const p = rows[0];
   const claim = await sql`
-    UPDATE "Post" SET status = 'POSTING'
+    UPDATE "Post" SET status = 'POSTING', "claimedAt" = now(), "attempts" = "attempts" + 1
     WHERE id = ${p.id} AND status = 'SCHEDULED'`;
   return claim.count === 1 ? p : null; // lost the race → retry next tick
 }
+
+const MAX_POST_ATTEMPTS = 3;
 
 async function processOne(p: DuePost): Promise<void> {
   try {
@@ -93,18 +96,29 @@ async function processOne(p: DuePost): Promise<void> {
         mediaUrl,
         title: p.title,
         caption: p.caption ?? p.title,
+        meta: (p.meta ?? undefined) as Record<string, unknown> | undefined,
       });
     }
+    // Guard with status='POSTING' so a reaper-requeued duplicate can't double-write.
     await sql`
       UPDATE "Post"
       SET status = 'POSTED', "postedAt" = now(),
           "externalId" = ${res.externalId ?? null}, "externalUrl" = ${res.url ?? null}
-      WHERE id = ${p.id}`;
+      WHERE id = ${p.id} AND status = 'POSTING'`;
     await sql`UPDATE "Clip" SET status = 'POSTED' WHERE id = ${p.clipId}`;
     console.info(`[publish ${p.id}] posted to ${p.platform}`);
   } catch (e) {
-    await sql`UPDATE "Post" SET status = 'FAILED' WHERE id = ${p.id}`;
-    console.error(`[publish ${p.id}] failed:`, e instanceof Error ? e.message : e);
+    // Bounded retry: requeue (SCHEDULED) until MAX attempts, then FAIL. Handles
+    // transient provider/network/DB blips without permanently killing a post.
+    const attempts = (p.attempts ?? 0) + 1;
+    const terminal = attempts >= MAX_POST_ATTEMPTS;
+    await sql`
+      UPDATE "Post" SET status = ${terminal ? "FAILED" : "SCHEDULED"}, "claimedAt" = NULL
+      WHERE id = ${p.id} AND status = 'POSTING'`;
+    console.error(
+      `[publish ${p.id}] ${terminal ? "failed (gave up)" : `error, will retry (${attempts}/${MAX_POST_ATTEMPTS})`}:`,
+      e instanceof Error ? e.message : e
+    );
   }
 }
 

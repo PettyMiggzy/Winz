@@ -21,6 +21,8 @@ export interface PublishInput {
   mediaUrl: string;
   title: string;
   caption: string;
+  /** Per-post options chosen at approval (TikTok privacy_level + toggles). */
+  meta?: Record<string, unknown>;
 }
 
 export interface PublishResult {
@@ -44,10 +46,22 @@ export async function publish(input: PublishInput): Promise<PublishResult> {
   form.append("async_upload", "true"); // don't block the poller on long processing
 
   switch (input.platform) {
-    case "tiktok":
+    case "tiktok": {
       form.append("tiktok_title", input.caption.slice(0, 150));
-      form.append("privacy_level", "PUBLIC_TO_EVERYONE");
+      // Honor the user's chosen privacy. Fail closed to SELF_ONLY (private) if
+      // it's somehow missing — never silently post public against their choice.
+      const m = (input.meta ?? {}) as {
+        privacyLevel?: string;
+        disableComment?: boolean;
+        disableDuet?: boolean;
+        disableStitch?: boolean;
+      };
+      form.append("privacy_level", m.privacyLevel ?? "SELF_ONLY");
+      form.append("disable_comment", String(m.disableComment ?? false));
+      form.append("disable_duet", String(m.disableDuet ?? false));
+      form.append("disable_stitch", String(m.disableStitch ?? false));
       break;
+    }
     case "youtube":
       form.append("youtube_title", input.title.slice(0, 100));
       form.append("youtube_privacy", "public");

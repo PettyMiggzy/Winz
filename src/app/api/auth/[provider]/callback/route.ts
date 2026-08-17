@@ -85,18 +85,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
     let tok = (await res.json()) as TokenResponse;
     if (!tok.access_token) throw new Error("no access_token in response");
 
-    // Instagram's first token is short-lived (~1h). Exchange it for the
-    // 60-day long-lived token (grant_type=ig_exchange_token) before storing.
+    // Instagram's first token is short-lived (~1h) with no expires_in. Exchange
+    // it for the 60-day long-lived token. If the exchange fails, treat it as a
+    // connect failure rather than silently storing a token that dies in an hour.
     if (p.id === "instagram") {
       const ll = await fetch(
         `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(p.clientSecret!)}&access_token=${encodeURIComponent(tok.access_token)}`
       );
-      if (ll.ok) {
-        const llTok = (await ll.json()) as { access_token?: string; expires_in?: number };
-        if (llTok.access_token) {
-          tok = { ...tok, access_token: llTok.access_token, expires_in: llTok.expires_in };
-        }
-      }
+      if (!ll.ok) throw new Error(`ig long-lived exchange ${ll.status}`);
+      const llTok = (await ll.json()) as { access_token?: string; expires_in?: number };
+      if (!llTok.access_token) throw new Error("ig long-lived exchange returned no token");
+      tok = { ...tok, access_token: llTok.access_token, expires_in: llTok.expires_in };
     }
 
     const profile = await fetchProfile(p.id, tok.access_token);
