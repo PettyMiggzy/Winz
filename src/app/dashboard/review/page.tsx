@@ -4,9 +4,11 @@ import { getReviewClips, getAccounts } from "@/server/store";
 
 export default async function ReviewPage() {
   const [toReview, accounts] = await Promise.all([getReviewClips(), getAccounts()]);
-  // Real connected TikTok handle for the consent dialog — never a placeholder.
-  const tiktokHandle =
-    accounts.find((a) => a.platform === "tiktok" && a.connected)?.handle ?? null;
+  // Every connected TikTok handle the approval will fan out to — the dialog
+  // shows all of them, never a single placeholder.
+  const tiktokHandles = accounts
+    .filter((a) => a.platform === "tiktok" && a.connected)
+    .map((a) => a.handle);
   return (
     <>
       <Topbar
@@ -14,7 +16,7 @@ export default async function ReviewPage() {
         subtitle="Quick-check each clip before it posts. Approve, skip, or change where it goes."
       />
       <div className="px-5 py-6 sm:px-8">
-        <ReviewQueue initial={toReview} tiktokHandle={tiktokHandle} />
+        <ReviewQueue initial={toReview} tiktokHandles={tiktokHandles} />
       </div>
     </>
   );

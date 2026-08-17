@@ -6,40 +6,46 @@ import { PlatformBadge } from "@/components/PlatformBadge";
 import { IconArrow, IconInbox, IconClock, IconCheck } from "@/components/Icons";
 import { getStats, getStreams, getClips } from "@/server/store";
 import { formatCount } from "@/lib/mock";
+import { hasDatabase } from "@/server/db";
 
 export default async function Overview() {
   const [stats, streams, clips] = await Promise.all([getStats(), getStreams(), getClips()]);
   const recentPosted = clips.filter((c) => c.status === "posted").slice(0, 4);
   const reviewCount = clips.filter((c) => c.status === "review").length;
+  // Live-status tracking isn't wired yet — only show the demo banner in demo
+  // mode, never fabricate "you're live" for a real signed-in workspace.
+  const showDemoLive = !hasDatabase;
 
   return (
     <>
       <Topbar title="Overview" subtitle="Here's what your streams are doing across every platform." />
       <div className="space-y-8 px-5 py-6 sm:px-8">
-        {/* Live-stream banner */}
-        <div className="card flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="relative grid h-11 w-11 place-items-center rounded-xl bg-brand/15 text-brand">
-              <span className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-brand" />
-              <span className="h-2.5 w-2.5 rounded-full bg-brand" />
-            </span>
-            <div>
-              <p className="font-semibold">You&apos;re live — “Warzone ranked grind”</p>
-              <p className="text-sm text-fog">WinClipz is capturing. Clips will be ready minutes after you end.</p>
+        {/* Live-stream banner — demo mode only until live capture is wired */}
+        {showDemoLive && (
+          <div className="card flex flex-col items-start gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="relative grid h-11 w-11 place-items-center rounded-xl bg-brand/15 text-brand">
+                <span className="absolute h-2.5 w-2.5 animate-ping rounded-full bg-brand" />
+                <span className="h-2.5 w-2.5 rounded-full bg-brand" />
+              </span>
+              <div>
+                <p className="font-semibold">You&apos;re live — “Warzone ranked grind”</p>
+                <p className="text-sm text-fog">WinClipz is capturing. Clips will be ready minutes after you end.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="pill"><IconClock className="h-3.5 w-3.5" /> 3h 04m</span>
+              <span className="pill">12 moments detected</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="pill"><IconClock className="h-3.5 w-3.5" /> 3h 04m</span>
-            <span className="pill">12 moments detected</span>
-          </div>
-        </div>
+        )}
 
-        {/* Stats */}
+        {/* Stats — real numbers only; no fabricated deltas in DB mode */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Clips this week" value={String(stats.clipsThisWeek)} hint="across 3 platforms" />
-          <StatCard label="Views this week" value={formatCount(stats.viewsThisWeek)} delta={`+${stats.viewsDeltaPct}%`} spark={stats.spark} />
-          <StatCard label="Profile clicks" value={stats.profileClicks.toLocaleString()} hint="→ your Kick channel" />
-          <StatCard label="New followers" value={stats.newFollowers.toLocaleString()} delta="+18%" />
+          <StatCard label="Clips this week" value={String(stats.clipsThisWeek)} />
+          <StatCard label="Views this week" value={formatCount(stats.viewsThisWeek)} spark={stats.spark} />
+          <StatCard label="Profile clicks" value={stats.profileClicks.toLocaleString()} hint={hasDatabase ? "coming soon" : "→ your Kick channel"} />
+          <StatCard label="New followers" value={stats.newFollowers.toLocaleString()} hint={hasDatabase ? "coming soon" : undefined} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">

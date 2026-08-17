@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconCheck } from "@/components/Icons";
 
 /**
@@ -30,12 +30,13 @@ const PRIVACY_OPTIONS = [
 
 export function TikTokApproveDialog({
   clipTitle,
-  accountHandle,
+  accountHandles,
   onConfirm,
   onCancel,
 }: {
   clipTitle: string;
-  accountHandle: string;
+  /** Every TikTok account this approval will post to. */
+  accountHandles: string[];
   onConfirm: (opts: TikTokPostOptions) => void;
   onCancel: () => void;
 }) {
@@ -48,12 +49,63 @@ export function TikTokApproveDialog({
   const [brandOrganic, setBrandOrganic] = useState(false);
   const [isAiGenerated, setIsAiGenerated] = useState(false);
 
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus the privacy select on open; close on Escape; basic focus trap.
+  useEffect(() => {
+    selectRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); onCancel(); return; }
+      if (e.key === "Tab" && dialogRef.current) {
+        const f = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, select, input, [tabindex]:not([tabindex="-1"])'
+        );
+        if (f.length === 0) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  // TikTok forbids branded content on private posts — clear SELF_ONLY if it's
+  // selected when branded content is turned on.
+  const privacyOptions = brandContent
+    ? PRIVACY_OPTIONS.filter((o) => o.value !== "SELF_ONLY")
+    : PRIVACY_OPTIONS;
+  useEffect(() => {
+    if (brandContent && privacy === "SELF_ONLY") setPrivacy("");
+  }, [brandContent, privacy]);
+
+  const targets =
+    accountHandles.length === 1
+      ? `@${accountHandles[0]}`
+      : accountHandles.map((h) => `@${h}`).join(", ");
+
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-2xl border border-line bg-ink-900 p-6 shadow-2xl">
-        <h3 className="text-lg font-bold">Post to TikTok</h3>
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tiktok-approve-title"
+      onClick={onCancel}
+    >
+      <div
+        ref={dialogRef}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-line bg-ink-900 p-6 shadow-2xl"
+      >
+        <h3 id="tiktok-approve-title" className="text-lg font-bold">Post to TikTok</h3>
         <p className="mt-1 text-sm text-fog">
-          &ldquo;{clipTitle}&rdquo; will be posted to <span className="font-semibold text-chalk">@{accountHandle}</span>.
+          &ldquo;{clipTitle}&rdquo; will be posted to{" "}
+          <span className="font-semibold text-chalk">{targets}</span>
+          {accountHandles.length > 1 && (
+            <span> ({accountHandles.length} accounts, staggered)</span>
+          )}
+          .
         </p>
 
         <label className="mt-5 block">
@@ -61,6 +113,7 @@ export function TikTokApproveDialog({
             Who can watch this video? <span className="text-magenta-soft">*</span>
           </span>
           <select
+            ref={selectRef}
             value={privacy}
             onChange={(e) => setPrivacy(e.target.value)}
             className="mt-1.5 w-full rounded-xl border border-line bg-ink-950 px-3.5 py-2.5 text-sm outline-none focus:border-brand/50"
@@ -68,7 +121,7 @@ export function TikTokApproveDialog({
             <option value="" disabled>
               Select privacy…
             </option>
-            {PRIVACY_OPTIONS.map((o) => (
+            {privacyOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -101,7 +154,8 @@ export function TikTokApproveDialog({
 
         <p className="mt-4 text-xs leading-relaxed text-fog">
           By posting, you confirm this content complies with TikTok&apos;s Community
-          Guidelines and that you have the rights to share it.
+          Guidelines{brandContent ? " and Branded Content Policy" : ""} and that you
+          have the rights to share it.
         </p>
 
         <div className="mt-5 flex gap-2">

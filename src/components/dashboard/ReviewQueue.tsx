@@ -12,10 +12,11 @@ const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
 
 export function ReviewQueue({
   initial,
-  tiktokHandle,
+  tiktokHandles = [],
 }: {
   initial: Clip[];
-  tiktokHandle?: string | null;
+  /** Connected TikTok handles this workspace will post to (fanout target). */
+  tiktokHandles?: string[];
 }) {
   const [decisions, setDecisions] = useState<Record<string, Decision>>(
     Object.fromEntries(initial.map((c) => [c.id, "pending"]))
@@ -30,6 +31,7 @@ export function ReviewQueue({
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   // Clip awaiting TikTok-specific consent (privacy level etc.) before approval.
   const [tiktokDialog, setTiktokDialog] = useState<Clip | null>(null);
+  const [noTikTok, setNoTikTok] = useState(false);
 
   const persist = async (id: string, d: Decision, tiktokOptions?: TikTokPostOptions) => {
     if (d === "pending") return;
@@ -56,6 +58,11 @@ export function ReviewQueue({
     // TikTok approvals need explicit per-post consent (privacy dropdown, no
     // default) — open the dialog instead of approving straight away.
     if (d === "approved" && assign[id] === "tiktok" && !tiktokOptions) {
+      if (tiktokHandles.length === 0) {
+        setFailed((prev) => ({ ...prev, [id]: true }));
+        setNoTikTok(true);
+        return;
+      }
       const clip = initial.find((c) => c.id === id);
       if (clip) setTiktokDialog(clip);
       return;
@@ -69,7 +76,7 @@ export function ReviewQueue({
       {tiktokDialog && (
         <TikTokApproveDialog
           clipTitle={tiktokDialog.title}
-          accountHandle={tiktokHandle ?? "no TikTok connected"}
+          accountHandles={tiktokHandles}
           onConfirm={(opts) => {
             const id = tiktokDialog.id;
             setTiktokDialog(null);
@@ -78,6 +85,12 @@ export function ReviewQueue({
           }}
           onCancel={() => setTiktokDialog(null)}
         />
+      )}
+      {noTikTok && (
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-magenta/30 bg-magenta/5 px-4 py-3 text-sm text-magenta-soft">
+          <span>No TikTok account connected yet — connect one to post there.</span>
+          <a href="/dashboard/accounts" className="font-semibold underline">Connect TikTok</a>
+        </div>
       )}
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="pill">

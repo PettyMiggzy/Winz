@@ -73,7 +73,11 @@ export function UploadForm() {
           body: file,
         });
         if (!put.ok) throw new Error(`upload to storage failed (${put.status})`);
-        await fetch(`/api/uploads/${data.streamId}/complete`, { method: "POST" });
+        const done = await fetch(`/api/uploads/${data.streamId}/complete`, { method: "POST" });
+        if (!done.ok) {
+          const d = await done.json().catch(() => ({}));
+          throw new Error(d.error ?? "couldn't finish the upload — please retry");
+        }
         setMsg("Queued — the engine will cut, title, and caption your clips.");
       } else {
         setMsg(data.note ?? "Queued — the engine will cut, title, and caption your clips.");
@@ -151,11 +155,15 @@ export function UploadForm() {
         ) : (
           /* Dropzone */
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Choose a video file to upload"
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
             onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0]); }}
             onClick={() => inputRef.current?.click()}
-            className={`grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed p-12 text-center transition-colors ${
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}
+            className={`grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed p-12 text-center outline-none transition-colors focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/40 ${
               drag ? "border-brand/60 bg-brand/5" : "border-line bg-ink-850/60 hover:border-brand/30"
             }`}
           >

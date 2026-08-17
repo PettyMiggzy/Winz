@@ -21,7 +21,7 @@ export default async function AccountsPage({
     <>
       <Topbar
         title="Accounts"
-        subtitle="Connect the accounts WinClipz posts to. Different clips go to each — never the same clip twice."
+        subtitle="Connect the accounts WinClipz posts to. Approved clips post to each on a staggered schedule so nothing goes out simultaneously."
       />
       <div className="space-y-8 px-5 py-6 sm:px-8">
         {sp.connected && (

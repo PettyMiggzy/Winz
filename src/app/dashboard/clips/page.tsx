@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { ClipThumb } from "@/components/dashboard/ClipThumb";
 import { PlatformBadge } from "@/components/PlatformBadge";
@@ -12,22 +13,37 @@ const STATUS_STYLE: Record<ClipStatus, string> = {
   skipped: "bg-ink-700 text-fog",
 };
 
-export default async function ClipsPage() {
-  const clips = await getClips();
+const FILTERS: { label: string; value: string; status?: ClipStatus }[] = [
+  { label: "All", value: "all" },
+  { label: "Posted", value: "posted", status: "posted" },
+  { label: "Scheduled", value: "scheduled", status: "scheduled" },
+  { label: "In review", value: "review", status: "review" },
+  { label: "Skipped", value: "skipped", status: "skipped" },
+];
+
+export default async function ClipsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const [all, sp] = await Promise.all([getClips(), searchParams]);
+  const active = FILTERS.find((f) => f.value === sp.status) ?? FILTERS[0];
+  const clips = active.status ? all.filter((c) => c.status === active.status) : all;
   return (
     <>
       <Topbar title="Clips" subtitle="Every clip WinClipz has cut from your streams." />
       <div className="px-5 py-6 sm:px-8">
         <div className="mb-5 flex flex-wrap gap-2">
-          {["All", "Posted", "Scheduled", "In review", "Skipped"].map((f, i) => (
-            <button
-              key={f}
+          {FILTERS.map((f) => (
+            <Link
+              key={f.value}
+              href={f.value === "all" ? "/dashboard/clips" : `/dashboard/clips?status=${f.value}`}
               className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${
-                i === 0 ? "border-brand/40 bg-brand/10 text-chalk" : "border-line bg-ink-850 text-fog hover:text-chalk"
+                active.value === f.value ? "border-brand/40 bg-brand/10 text-chalk" : "border-line bg-ink-850 text-fog hover:text-chalk"
               }`}
             >
-              {f}
-            </button>
+              {f.label}
+            </Link>
           ))}
         </div>
 

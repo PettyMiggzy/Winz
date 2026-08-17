@@ -114,7 +114,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Will the same clip get flagged for being posted to multiple accounts?",
-    a: <>WinClipz cuts <i>different</i> moments from the same video and paces each account with a warm-up ramp, so you&rsquo;re publishing distinct clips at a natural cadence rather than spamming one clip everywhere.</>,
+    a: <>WinClipz cuts multiple distinct moments from each video, and when a clip posts to more than one of your accounts it&rsquo;s spaced out on a staggered schedule (90+ minutes apart, never simultaneously) rather than blasted everywhere at once. New accounts also ramp up gradually.</>,
   },
   {
     q: "Does it store my passwords?",
