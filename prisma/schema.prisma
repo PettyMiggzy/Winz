@@ -94,6 +94,13 @@ model Session {
   @@index([userId])
 }
 
+// Fixed-window rate-limit counters (login/signup brute-force protection).
+model RateLimit {
+  bucket  String   @id // e.g. "login:ip:1.2.3.4" or "login:email:x@y.z"
+  count   Int      @default(0)
+  resetAt DateTime
+}
+
 model ApiKey {
   id         String    @id @default(cuid())
   tenantId   String

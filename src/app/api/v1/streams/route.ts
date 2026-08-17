@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getPrisma } from "@/server/db";
 import { tenantForApiKey } from "@/server/apikeys";
-import { checkVideoQuota } from "@/server/limits";
+import { createStreamWithinQuota } from "@/server/limits";
+import { checkIngestUrl } from "@/server/urlguard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,9 +15,6 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const tenantId = await tenantForApiKey(req.headers.get("authorization"));
   if (!tenantId) return NextResponse.json({ error: "invalid or missing API key" }, { status: 401 });
-  const quota = await checkVideoQuota(tenantId);
-  if (!quota.allowed) return NextResponse.json({ error: quota.error }, { status: 402 });
-  const prisma = getPrisma()!;
 
   let body: { url?: unknown; title?: unknown };
   try {
@@ -28,26 +25,18 @@ export async function POST(req: Request) {
   if (typeof body.url !== "string" || !body.url.trim()) {
     return NextResponse.json({ error: "url is required" }, { status: 400 });
   }
-  let parsed: URL;
-  try {
-    parsed = new URL(body.url.trim());
-  } catch {
-    return NextResponse.json({ error: "not a valid URL" }, { status: 400 });
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    return NextResponse.json({ error: "url must be http(s)" }, { status: 400 });
-  }
+  const guardErr = checkIngestUrl(body.url); // SSRF pre-check + protocol
+  if (guardErr) return NextResponse.json({ error: guardErr }, { status: 400 });
+  const parsed = new URL(body.url.trim());
 
-  const stream = await prisma.stream.create({
-    data: {
-      tenantId,
-      title:
-        typeof body.title === "string" && body.title.trim()
-          ? body.title.trim().slice(0, 120)
-          : `API: ${parsed.hostname.replace(/^www\./, "")}`,
-      status: "QUEUED",
-      sourceUrl: parsed.toString(),
-    },
+  const created = await createStreamWithinQuota(tenantId, {
+    title:
+      typeof body.title === "string" && body.title.trim()
+        ? body.title.trim().slice(0, 120)
+        : `API: ${parsed.hostname.replace(/^www\./, "")}`,
+    status: "QUEUED",
+    sourceUrl: parsed.toString(),
   });
-  return NextResponse.json({ id: stream.id, status: "QUEUED" }, { status: 201 });
+  if (!created.ok) return NextResponse.json({ error: created.error }, { status: 402 });
+  return NextResponse.json({ id: created.id, status: "QUEUED" }, { status: 201 });
 }

@@ -1,7 +1,8 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/server/db";
 import { getSessionTenantId } from "@/server/auth";
-import { checkVideoQuota } from "@/server/limits";
+import { createStreamWithinQuota } from "@/server/limits";
 import { r2Configured, presignPut, publicUrl } from "@/server/r2";
 
 export const runtime = "nodejs";
@@ -40,24 +41,23 @@ export async function POST(req: Request) {
   if (prisma) {
     const tenantId = await getSessionTenantId();
     if (!tenantId) return NextResponse.json({ error: "sign in to upload" }, { status: 401 });
-    const quota = await checkVideoQuota(tenantId);
-    if (!quota.allowed) return NextResponse.json({ error: quota.error }, { status: 402 });
-    const key = `uploads/${tenantId}/${Date.now().toString(36)}-${safeName}`;
+    // Random component so keys aren't guessable (the bucket is public-read; only
+    // key secrecy protects a tenant's private source VOD from enumeration).
+    const rand = crypto.randomUUID().replace(/-/g, "");
+    const key = `uploads/${tenantId}/${rand}-${safeName}`;
     const uploadUrl = r2Configured
       ? await presignPut(key, typeof contentType === "string" ? contentType : "video/mp4")
       : null;
-    const stream = await prisma.stream.create({
-      data: {
-        tenantId,
-        title,
-        status: uploadUrl ? "UPLOADING" : "QUEUED",
-        sourceKey: key,
-        sourceUrl: r2Configured ? publicUrl(key) : null,
-      },
+    const created = await createStreamWithinQuota(tenantId, {
+      title,
+      status: uploadUrl ? "UPLOADING" : "QUEUED",
+      sourceKey: key,
+      sourceUrl: r2Configured ? publicUrl(key) : null,
     });
+    if (!created.ok) return NextResponse.json({ error: created.error }, { status: 402 });
     return NextResponse.json({
       ok: true,
-      streamId: stream.id,
+      streamId: created.id,
       uploadUrl,
       styleHint: typeof styleHint === "string" ? styleHint : undefined,
       layout: typeof layout === "string" ? layout : "crop",

@@ -73,6 +73,16 @@ async function ensureSchema(): Promise<void> {
       "createdAt" timestamptz NOT NULL DEFAULT now()
     )`;
   await sql`CREATE INDEX IF NOT EXISTS "ApiKey_tenantId_idx" ON "ApiKey"("tenantId")`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS "RateLimit" (
+      bucket text PRIMARY KEY,
+      count integer NOT NULL DEFAULT 0,
+      "resetAt" timestamptz NOT NULL
+    )`;
+  // Prevent duplicate live posts for the same clip+account (concurrent approve).
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "Post_clip_account_live_uniq"
+    ON "Post"("clipId", "accountId") WHERE status <> 'FAILED'`;
   // Recover jobs orphaned by container restarts before claimedAt existed.
   const legacy = await sql`
     UPDATE "Stream" SET status = 'QUEUED'

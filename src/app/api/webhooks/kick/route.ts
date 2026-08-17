@@ -12,8 +12,16 @@ export const dynamic = "force-dynamic";
  * On stream-end this is where we create the Stream row and enqueue a processing
  * job for the worker.
  */
+// Only these event kinds are ever persisted/acted on — anything else is a
+// signed-by-Kick event for some other app and gets a cheap ack, not a DB write.
+const ALLOWED_EVENTS = new Set(["livestream.status.updated"]);
+const MAX_BODY_BYTES = 64 * 1024; // Kick events are tiny; cap to prevent DB spam
+
 export async function POST(req: Request) {
   const rawBody = await req.text();
+  if (rawBody.length > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "payload too large" }, { status: 413 });
+  }
   const sig = readSignatureHeaders(req.headers);
   const eventType = req.headers.get("Kick-Event-Type") ?? "unknown";
 
@@ -27,9 +35,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
   // NOTE: Kick signs every app's webhooks with one global key, so a valid
-  // signature proves "sent by Kick", not "for us". TODO: once subscriptions are
-  // persisted, verify the broadcaster/subscription belongs to a known tenant
-  // before acting on the event.
+  // signature proves "sent by Kick", not "for us". Until per-tenant Kick
+  // subscriptions are persisted, drop event kinds we don't handle (so a third
+  // party can't spam our WebhookEvent table via their own Kick app) — and, once
+  // subscriptions land, also match the broadcaster to a known tenant here.
+  if (!ALLOWED_EVENTS.has(eventType)) {
+    return NextResponse.json({ ok: true, ignored: eventType });
+  }
 
   let payload: unknown;
   try {

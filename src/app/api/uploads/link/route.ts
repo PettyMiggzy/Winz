@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getPrisma } from "@/server/db";
 import { getSessionTenantId } from "@/server/auth";
-import { checkVideoQuota } from "@/server/limits";
+import { createStreamWithinQuota } from "@/server/limits";
+import { checkIngestUrl } from "@/server/urlguard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,15 +29,9 @@ export async function POST(req: Request) {
   if (typeof url !== "string" || !url.trim()) {
     return NextResponse.json({ error: "url is required" }, { status: 400 });
   }
-  let parsed: URL;
-  try {
-    parsed = new URL(url.trim());
-  } catch {
-    return NextResponse.json({ error: "not a valid URL" }, { status: 400 });
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    return NextResponse.json({ error: "url must be http(s)" }, { status: 400 });
-  }
+  const guardErr = checkIngestUrl(url); // SSRF pre-check + protocol validation
+  if (guardErr) return NextResponse.json({ error: guardErr }, { status: 400 });
+  const parsed = new URL(url.trim());
 
   const title =
     typeof rawTitle === "string" && rawTitle.trim()
@@ -47,18 +42,14 @@ export async function POST(req: Request) {
   if (prisma) {
     const tenantId = await getSessionTenantId();
     if (!tenantId) return NextResponse.json({ error: "sign in to add videos" }, { status: 401 });
-    const quota = await checkVideoQuota(tenantId);
-    if (!quota.allowed) return NextResponse.json({ error: quota.error }, { status: 402 });
-    const stream = await prisma.stream.create({
-      data: {
-        tenantId,
-        title,
-        status: "QUEUED",
-        sourceUrl: parsed.toString(),
-        // no sourceKey → the worker treats sourceUrl as a link to download
-      },
+    const created = await createStreamWithinQuota(tenantId, {
+      title,
+      status: "QUEUED",
+      sourceUrl: parsed.toString(),
+      // no sourceKey → the worker treats sourceUrl as a link to download
     });
-    return NextResponse.json({ ok: true, streamId: stream.id });
+    if (!created.ok) return NextResponse.json({ error: created.error }, { status: 402 });
+    return NextResponse.json({ ok: true, streamId: created.id });
   }
 
   return NextResponse.json({

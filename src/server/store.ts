@@ -296,6 +296,7 @@ export async function recordClipDecision(
           // guidance: >=90 min spacing, randomized, never simultaneous).
           let t = Date.now() + Math.floor(Math.random() * 5) * 60_000;
           await prisma.post.createMany({
+            skipDuplicates: true, // partial-unique (clipId,accountId) backstops the race
             data: toCreate.map((a) => {
               const scheduledFor = new Date(t);
               t += (90 + Math.floor(Math.random() * 30)) * 60_000;

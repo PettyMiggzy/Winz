@@ -104,24 +104,38 @@ export async function signUp(
   const isAdmin = adminEmails().includes(normEmail);
   const passwordHash = await bcrypt.hash(password, 11);
 
-  const user = await prisma.$transaction(async (tx) => {
-    const tenant = isAdmin
-      ? await tx.tenant.upsert({
-          where: { kickSlug: "winslowbankz" },
-          update: { plan: "ADMIN" },
-          create: { name: "WinslowBankz", kickSlug: "winslowbankz", plan: "ADMIN" },
-        })
-      : await tx.tenant.create({
-          data: { name: name?.trim() || normEmail.split("@")[0], plan: "FREE" },
-        });
-    return tx.user.create({
-      data: { tenantId: tenant.id, email: normEmail, name: name?.trim() || null, passwordHash },
+  let user;
+  try {
+    user = await prisma.$transaction(async (tx) => {
+      const tenant = isAdmin
+        ? await tx.tenant.upsert({
+            where: { kickSlug: "winslowbankz" },
+            update: { plan: "ADMIN" },
+            create: { name: "WinslowBankz", kickSlug: "winslowbankz", plan: "ADMIN" },
+          })
+        : await tx.tenant.create({
+            data: { name: name?.trim() || normEmail.split("@")[0], plan: "FREE" },
+          });
+      return tx.user.create({
+        data: { tenantId: tenant.id, email: normEmail, name: name?.trim() || null, passwordHash },
+      });
     });
-  });
+  } catch (e) {
+    // Unique-constraint race (two concurrent signups): the DB, not the pre-check,
+    // is the source of truth. Map P2002 to the friendly duplicate message.
+    if (e && typeof e === "object" && "code" in e && (e as { code: unknown }).code === "P2002") {
+      return { ok: false, error: "that email already has an account — sign in instead" };
+    }
+    throw e;
+  }
 
   await issueSession(user.id);
   return { ok: true };
 }
+
+// A real cost-11 bcrypt hash to compare against when the account is missing, so
+// login takes the same time whether or not the email exists (no timing oracle).
+const DUMMY_HASH = "$2b$11$UEKCCO.8ifvZJIIBJjsiyuxBWFHPNhMrmOlIyZcctDK8ZuKhqKMAC";
 
 export async function signIn(
   email: string,
@@ -130,10 +144,10 @@ export async function signIn(
   const prisma = getPrisma();
   if (!prisma) return { ok: false, error: "demo mode — no database configured" };
   const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
-  // Same error for unknown email and wrong password — no account enumeration.
-  if (!user?.passwordHash) return { ok: false, error: "wrong email or password" };
-  const good = await bcrypt.compare(password, user.passwordHash);
-  if (!good) return { ok: false, error: "wrong email or password" };
+  // Always run a bcrypt compare (real hash or dummy) so response time doesn't
+  // reveal whether the email exists. Same error for both cases.
+  const good = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
+  if (!user?.passwordHash || !good) return { ok: false, error: "wrong email or password" };
   await issueSession(user.id);
   return { ok: true };
 }
