@@ -13,6 +13,15 @@ const ALLOWED_EVENTS = new Set(["livestream.status.updated"]);
 const MAX_BODY_BYTES = 64 * 1024; // Kick events are tiny; cap to prevent DB spam
 
 /**
+ * Kick delivers events by POST. A GET (someone checking the URL in a browser,
+ * or a provider-side reachability probe) gets a plain 200 instead of a 405 that
+ * looks like the endpoint is broken.
+ */
+export async function GET() {
+  return NextResponse.json({ ok: true, endpoint: "kick-webhook", accepts: "POST" });
+}
+
+/**
  * Kick event webhook — the auto-clip trigger.
  *
  * Verifies Kick's RSA signature, matches the broadcaster to a connected
