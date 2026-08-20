@@ -63,6 +63,11 @@ model Tenant {
   // Comma-separated ISO language codes to auto-dub approved clips into
   // (e.g. "es,pt"). Empty/null = dubbing off.
   dubLanguages String?
+  // Clip framing: "crop" (centre-cut), "blurpad" (letterbox), or "split"
+  // (facecam over gameplay). facecam is "x,y,w,h" as 0-1 fractions of the
+  // source frame — required for split, which falls back to crop without it.
+  clipLayout   String  @default("crop")
+  facecam      String?
   createdAt DateTime        @default(now())
   users     User[]
   accounts  SocialAccount[]

@@ -111,6 +111,7 @@ export async function processVideo(inputPath: string, outDir: string, opts: Engi
     minClipSec = 10,
     maxClipSec = 32,
     layout = 'crop',
+    facecam,
     burnHookTitle = true,
     styleHint,
     onProgress = () => {},
@@ -151,7 +152,7 @@ export async function processVideo(inputPath: string, outDir: string, opts: Engi
     const clips: ClipResult[] = [];
     for (const clip of resolved) {
       onProgress('render', `${clip.slug} [${clip.start.toFixed(1)}s → ${clip.end.toFixed(1)}s]`);
-      const file = await renderClip(inputPath, clip, transcript.words, outDir, layout, burnHookTitle);
+      const file = await renderClip(inputPath, clip, transcript.words, outDir, layout, burnHookTitle, facecam);
       clips.push({ ...clip, file });
     }
 

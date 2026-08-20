@@ -53,7 +53,10 @@ export interface EngineOptions {
   minClipSec?: number; // default 10
   maxClipSec?: number; // default 32
   /** 'crop' = center-crop to 9:16 (facecam/IRL), 'blurpad' = fit whole frame on blurred bg (gameplay) */
-  layout?: 'crop' | 'blurpad';
+  layout?: 'crop' | 'blurpad' | 'split';
+  /** Where the facecam sits in the source frame, as 0-1 fractions. Required
+   *  for the 'split' layout; without it split falls back to a centre crop. */
+  facecam?: Facecam;
   /** shown at top of the video for the first ~3.5s; defaults to clip title */
   burnHookTitle?: boolean;
   /** e.g. "Kick streamer, gaming + IRL reactions" — steers the scorer */
@@ -70,4 +73,12 @@ export interface Manifest {
   createdAt: string;
   clips: ClipResult[];
   dropped: { title: string; reason: string }[];
+}
+
+/** Facecam rectangle in the source frame, normalised to 0-1. */
+export interface Facecam {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }

@@ -2,6 +2,7 @@ import { Topbar } from "@/components/dashboard/Topbar";
 import { SettingsForm } from "@/components/dashboard/SettingsForm";
 import { ApiKeysPanel } from "@/components/dashboard/ApiKeysPanel";
 import { DubbingPanel } from "@/components/dashboard/DubbingPanel";
+import { FramingPanel } from "@/components/dashboard/FramingPanel";
 import { getPrisma } from "@/server/db";
 import { getSessionUser } from "@/server/auth";
 import { checkVideoQuota } from "@/server/limits";
@@ -58,12 +59,35 @@ async function Dubbing() {
   return <DubbingPanel initial={initial} cap={limits.dubLanguages} planLabel={limits.label} />;
 }
 
+async function Framing() {
+  if (!hasDatabase) return null;
+  const user = await getSessionUser();
+  if (!user) return null;
+  const prisma = getPrisma()!;
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: user.tenantId },
+    select: { clipLayout: true, facecam: true },
+  });
+  const parts = (tenant?.facecam ?? "").split(",").map(Number);
+  const facecam =
+    parts.length === 4 && parts.every((n) => Number.isFinite(n))
+      ? { x: parts[0], y: parts[1], w: parts[2], h: parts[3] }
+      : null;
+  return (
+    <FramingPanel
+      initialLayout={(tenant?.clipLayout ?? "crop") as "crop" | "blurpad" | "split"}
+      initialFacecam={facecam}
+    />
+  );
+}
+
 export default function SettingsPage() {
   return (
     <>
       <Topbar title="Settings" subtitle="Branding, captions, posting cadence, and safety — all in one place." />
       <div className="space-y-6 px-5 py-6 sm:px-8">
         <PlanUsage />
+        <Framing />
         <Dubbing />
         <SettingsForm />
         <ApiKeysPanel />

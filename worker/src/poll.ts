@@ -28,6 +28,18 @@ interface QueuedStream {
   tenantId: string;
   sourceUrl: string | null;
   title: string;
+  clipLayout: string | null;
+  facecam: string | null;
+}
+
+/** Parse the stored "x,y,w,h" facecam rect; null when unset or malformed. */
+function parseFacecam(raw: string | null): { x: number; y: number; w: number; h: number } | undefined {
+  if (!raw) return undefined;
+  const parts = raw.split(",").map((n) => Number(n.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n) || n < 0 || n > 1)) return undefined;
+  const [x, y, w, h] = parts;
+  if (w <= 0 || h <= 0) return undefined;
+  return { x, y, w, h };
 }
 
 /**
@@ -80,6 +92,8 @@ async function ensureSchema(): Promise<void> {
       "resetAt" timestamptz NOT NULL
     )`;
   await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "dubLanguages" text`;
+  await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "clipLayout" text NOT NULL DEFAULT 'crop'`;
+  await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "facecam" text`;
   await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "lang" text`;
   await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "sourceClipId" text`;
   await sql`
@@ -146,9 +160,11 @@ async function reapStale(): Promise<void> {
 /** Claim the oldest QUEUED stream (CAS on status). Returns null if none. */
 async function claimNext(): Promise<QueuedStream | null> {
   const found = await sql<QueuedStream[]>`
-    SELECT id, "tenantId", "sourceUrl", title
-    FROM "Stream" WHERE status = 'QUEUED'
-    ORDER BY "startedAt" ASC LIMIT 1`;
+    SELECT s.id, s."tenantId", s."sourceUrl", s.title,
+           t."clipLayout", t.facecam
+    FROM "Stream" s JOIN "Tenant" t ON t.id = s."tenantId"
+    WHERE s.status = 'QUEUED'
+    ORDER BY s."startedAt" ASC LIMIT 1`;
   if (found.length === 0) return null;
   const s = found[0];
   const claim = await sql`
@@ -167,10 +183,12 @@ async function processOne(s: QueuedStream): Promise<void> {
     await downloadSource(s.sourceUrl, input);
 
     const outDir = join(config.workDir, s.tenantId, s.id);
+    const layout = (s.clipLayout ?? "crop") as "crop" | "blurpad" | "split";
     const manifest = await processVideo(input, outDir, {
       styleHint: s.title,
       maxClipSec: 60,
-      layout: "crop",
+      layout,
+      facecam: parseFacecam(s.facecam),
       onProgress: (stage, d) => {
         console.info(`[${s.id}] ${stage}${d ? ": " + d : ""}`);
         // Heartbeat the claim so a legitimately long job isn't reaped as dead.
