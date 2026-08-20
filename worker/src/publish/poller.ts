@@ -67,7 +67,7 @@ async function processOne(p: DuePost): Promise<void> {
     const platform = p.platform.toLowerCase() as Platform;
     const mediaUrl = publicUrl(p.storageKey);
 
-    let res: { externalId?: string; url?: string };
+    let res: { externalId?: string; url?: string; pending?: boolean };
     if (platform === "tiktok" && p.hasOwnToken && tiktok.tiktokConfigured()) {
       // In-house TikTok (our own app): direct post in sandbox/audited mode,
       // drafts mode otherwise (TIKTOK_POST_MODE=draft).
@@ -99,10 +99,22 @@ async function processOne(p: DuePost): Promise<void> {
         meta: (p.meta ?? undefined) as Record<string, unknown> | undefined,
       });
     }
-    // Guard with status='POSTING' so a reaper-requeued duplicate can't double-write.
+    // Guard every terminal write with status='POSTING' so a reaper-requeued
+    // duplicate can't clobber the original's result.
+    if (res.pending) {
+      // Bytes delivered, platform still deciding. Saying "posted" here would be
+      // a guess — and TikTok rejects uploads often enough (format, duration,
+      // spam risk, revoked auth) that the guess would sometimes be wrong.
+      await sql`
+        UPDATE "Post"
+        SET status = 'PROCESSING', "externalId" = ${res.externalId ?? null}, "claimedAt" = now()
+        WHERE id = ${p.id} AND status = 'POSTING'`;
+      console.info(`[publish ${p.id}] uploaded to ${p.platform} — awaiting confirmation`);
+      return;
+    }
     await sql`
       UPDATE "Post"
-      SET status = 'POSTED', "postedAt" = now(),
+      SET status = 'POSTED', "postedAt" = now(), error = NULL,
           "externalId" = ${res.externalId ?? null}, "externalUrl" = ${res.url ?? null}
       WHERE id = ${p.id} AND status = 'POSTING'`;
     await sql`UPDATE "Clip" SET status = 'POSTED' WHERE id = ${p.clipId}`;
@@ -112,13 +124,78 @@ async function processOne(p: DuePost): Promise<void> {
     // transient provider/network/DB blips without permanently killing a post.
     const attempts = (p.attempts ?? 0) + 1;
     const terminal = attempts >= MAX_POST_ATTEMPTS;
+    const msg = (e instanceof Error ? e.message : String(e)).slice(0, 500);
     await sql`
-      UPDATE "Post" SET status = ${terminal ? "FAILED" : "SCHEDULED"}, "claimedAt" = NULL
+      UPDATE "Post" SET status = ${terminal ? "FAILED" : "SCHEDULED"}, "claimedAt" = NULL,
+                        error = ${msg}
       WHERE id = ${p.id} AND status = 'POSTING'`;
     console.error(
       `[publish ${p.id}] ${terminal ? "failed (gave up)" : `error, will retry (${attempts}/${MAX_POST_ATTEMPTS})`}:`,
-      e instanceof Error ? e.message : e
+      msg
     );
+  }
+}
+
+/** Give TikTok this long to commit before calling the post a failure. */
+const CONFIRM_DEADLINE_MIN = 30;
+
+interface PendingPost {
+  id: string;
+  clipId: string;
+  accountId: string;
+  externalId: string | null;
+  handle: string;
+  claimedAt: Date | null;
+}
+
+/**
+ * Chase uploads the platform hasn't committed to yet. Nothing here re-uploads —
+ * it only asks "did it actually go live?" and writes down the answer, so a post
+ * only reads as posted once TikTok says so.
+ */
+async function confirmPending(): Promise<void> {
+  const rows = await sql<PendingPost[]>`
+    SELECT p.id, p."clipId", p."accountId", p."externalId", p."claimedAt", a.handle
+    FROM "Post" p JOIN "SocialAccount" a ON a.id = p."accountId"
+    WHERE p.status = 'PROCESSING' AND p.platform = 'TIKTOK' AND p."externalId" IS NOT NULL
+    ORDER BY p."claimedAt" ASC NULLS FIRST
+    LIMIT 10`;
+  for (const p of rows) {
+    try {
+      const outcome = await tiktok.fetchPublishStatus(p.accountId, p.externalId!);
+      if (outcome.state === "pending") {
+        const waited = p.claimedAt ? Date.now() - new Date(p.claimedAt).getTime() : 0;
+        if (waited > CONFIRM_DEADLINE_MIN * 60_000) {
+          await sql`
+            UPDATE "Post" SET status = 'FAILED',
+              error = ${`TikTok never confirmed the post within ${CONFIRM_DEADLINE_MIN} minutes`}
+            WHERE id = ${p.id} AND status = 'PROCESSING'`;
+          console.warn(`[publish ${p.id}] tiktok never confirmed — marked failed`);
+        }
+        continue;
+      }
+      if (outcome.state === "failed") {
+        await sql`
+          UPDATE "Post" SET status = 'FAILED', error = ${outcome.reason}
+          WHERE id = ${p.id} AND status = 'PROCESSING'`;
+        console.warn(`[publish ${p.id}] tiktok rejected the post: ${outcome.reason}`);
+        continue;
+      }
+      // TikTok only hands back a post id for publicly-visible posts; a private
+      // or inbox post is still a real success, it just has no link to give.
+      const url = outcome.postId ? tiktok.postUrl(p.handle, outcome.postId) : null;
+      await sql`
+        UPDATE "Post" SET status = 'POSTED', "postedAt" = now(), "externalUrl" = ${url}, error = NULL
+        WHERE id = ${p.id} AND status = 'PROCESSING'`;
+      await sql`UPDATE "Clip" SET status = 'POSTED' WHERE id = ${p.clipId}`;
+      console.info(
+        `[publish ${p.id}] tiktok confirmed${outcome.inbox ? " (in the creator's inbox)" : ""}${url ? `: ${url}` : ""}`
+      );
+    } catch (e) {
+      // A status check that errors is not evidence either way — leave the row
+      // PROCESSING and try again; the deadline above is the backstop.
+      console.warn(`[publish ${p.id}] status check failed:`, e instanceof Error ? e.message : e);
+    }
   }
 }
 
@@ -139,8 +216,12 @@ export async function runPublishPoller(intervalMs = 7000): Promise<void> {
   for (const sig of ["SIGINT", "SIGTERM"] as const) {
     process.on(sig, () => { stop = true; });
   }
+  let tick = 0;
   while (!stop) {
     try {
+      // ~every 70s. TikTok caps status checks at 30/min per user token, and a
+      // 30-minute deadline needs nothing like per-tick polling.
+      if (tick++ % 10 === 0) await confirmPending();
       const p = await claimNext();
       if (p) await processOne(p);
       else await new Promise((r) => setTimeout(r, intervalMs));

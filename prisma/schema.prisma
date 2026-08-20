@@ -48,7 +48,8 @@ enum ClipStatus {
 
 enum PostStatus {
   SCHEDULED
-  POSTING
+  POSTING // worker is uploading right now
+  PROCESSING // bytes delivered, platform hasn't committed yet
   POSTED
   FAILED
 }
@@ -215,6 +216,9 @@ model Post {
   postedAt     DateTime?
   externalId   String?
   externalUrl  String?
+  /// Why this post failed, in the platform's own words. Shown to the creator —
+  /// "failed" with no reason is the complaint every competitor gets.
+  error        String?
   views        Int?
   likes        Int?
   // Per-post publish options chosen by the user at approval time (e.g. TikTok

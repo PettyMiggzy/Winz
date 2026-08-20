@@ -5,8 +5,20 @@ import { getPosts } from "@/server/store";
 const STATUS_STYLE: Record<string, string> = {
   scheduled: "bg-violet/15 text-violet",
   posting: "bg-brand/15 text-brand",
+  processing: "bg-brand/15 text-brand",
   posted: "bg-brand/15 text-brand",
   failed: "bg-magenta/15 text-magenta-soft",
+};
+
+// "posting" and "processing" are different things and the difference matters:
+// one is us sending bytes, the other is the platform deciding whether to keep
+// them. A post isn't posted until the platform says it is.
+const STATUS_LABEL: Record<string, string> = {
+  scheduled: "scheduled",
+  posting: "uploading",
+  processing: "awaiting platform",
+  posted: "posted",
+  failed: "failed",
 };
 
 export default async function PostsPage() {
@@ -40,7 +52,14 @@ export default async function PostsPage() {
               <tbody>
                 {posts.map((p) => (
                   <tr key={p.id} className="border-b border-line/60 last:border-0">
-                    <td className="max-w-[240px] truncate px-4 py-3 font-medium">{p.clipTitle}</td>
+                    <td className="max-w-[240px] px-4 py-3 font-medium">
+                      <span className="block truncate">{p.clipTitle}</span>
+                      {p.error && (
+                        <span className="mt-0.5 block truncate text-xs font-normal text-magenta-soft" title={p.error}>
+                          {p.error}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5">
                         <PlatformBadge platform={p.platform} />
@@ -55,11 +74,11 @@ export default async function PostsPage() {
                           rel="noreferrer"
                           className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize hover:underline ${STATUS_STYLE[p.status]}`}
                         >
-                          {p.status} ↗
+                          {STATUS_LABEL[p.status] ?? p.status} ↗
                         </a>
                       ) : (
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${STATUS_STYLE[p.status]}`}>
-                          {p.status}
+                          {STATUS_LABEL[p.status] ?? p.status}
                         </span>
                       )}
                     </td>

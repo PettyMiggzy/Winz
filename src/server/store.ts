@@ -233,11 +233,13 @@ export interface PostRow {
   clipTitle: string;
   platform: Platform;
   accountHandle: string;
-  status: "scheduled" | "posting" | "posted" | "failed";
+  status: "scheduled" | "posting" | "processing" | "posted" | "failed";
   when: string;
   /** For queued posts: when it's due, in absolute local-ish terms. */
   dueAt?: string;
   externalUrl?: string;
+  /** Why it failed, in the platform's words. "Failed" with no reason is useless. */
+  error?: string;
 }
 
 /** Post history — what went (or is going) where. */
@@ -267,6 +269,7 @@ export async function getPosts(): Promise<PostRow[]> {
           }) + " UTC"
         : undefined,
     externalUrl: p.externalUrl ?? undefined,
+    error: p.error ?? undefined,
   }));
 }
 

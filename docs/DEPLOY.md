@@ -145,6 +145,27 @@ TikTok approvals require a per-post consent dialog (privacy dropdown with no
 default) — that UI is part of the product, don't "optimize" it away; it's a
 TikTok compliance requirement.
 
+### Post confirmation
+
+Uploading bytes is not publishing. TikTok processes asynchronously and can
+still reject a post (format, duration, frame rate, spam risk, revoked auth), so
+a post goes `POSTING` -> `PROCESSING` -> `POSTED`/`FAILED`:
+
+- `PROCESSING` means TikTok has the file and hasn't committed. The worker polls
+  `post/publish/status/fetch` about once a minute (TikTok caps it at 30/min per
+  user token) and writes down the answer.
+- On success it stores the real watch URL, so the Posts page links straight to
+  the live video. Private and inbox (draft-mode) posts are successes too — they
+  just have no public id, so there's no link to give.
+- On rejection the post is FAILED **with TikTok's own reason** on `Post.error`,
+  shown in the dashboard. "Failed" with no reason is the top complaint against
+  every competitor.
+- Never confirmed within 30 minutes -> FAILED. An uninterpretable status is
+  never treated as success.
+
+`PROCESSING` is deliberately outside the stale-claim reaper's window —
+requeueing one would post the clip twice.
+
 ## Developer API (monetizable surface)
 
 Public REST API, keys managed in Dashboard → Settings → API keys (sha256

@@ -127,6 +127,10 @@ async function ensureSchema(): Promise<void> {
     )`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS "Dub_clip_lang_uniq" ON "Dub"("clipId", lang)`;
   await sql`CREATE INDEX IF NOT EXISTS "Dub_tenantId_idx" ON "Dub"("tenantId")`;
+  await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS error text`;
+  // Uploaded-but-unconfirmed. Deliberately outside the reaper's requeue window:
+  // re-claiming one of these would post the clip a second time.
+  await sql`ALTER TYPE "PostStatus" ADD VALUE IF NOT EXISTS 'PROCESSING'`;
   await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "notBefore" timestamptz`;
   await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "chatCaptureId" text`;
   await sql`

@@ -9,6 +9,11 @@
  *
  * Upload is push_by_file (init → PUT bytes → TikTok processes), so no domain
  * verification is needed. Tokens auto-refresh via the stored refresh_token.
+ *
+ * Uploading the bytes is NOT publishing. TikTok processes asynchronously and
+ * can still reject the post (format, duration, spam risk, revoked auth), so
+ * the publish_id is a receipt, not a result — the caller polls
+ * `fetchPublishStatus` until TikTok commits one way or the other.
  */
 import { sql } from "../db.ts";
 
@@ -93,7 +98,7 @@ export async function publishToTikTok(input: {
   mediaUrl: string;
   caption: string;
   meta: TikTokMeta;
-}): Promise<{ externalId?: string }> {
+}): Promise<{ externalId?: string; pending: boolean }> {
   const token = await accessTokenFor(input.socialAccountId);
   const video = await fetchVideo(input.mediaUrl);
 
@@ -171,5 +176,79 @@ export async function publishToTikTok(input: {
     if (!put.ok) throw new Error(`tiktok upload chunk ${i + 1}/${totalChunks} ${put.status}`);
   }
 
-  return { externalId: initJson.data?.publish_id };
+  const publishId = initJson.data?.publish_id;
+  if (!publishId) throw new Error("tiktok init returned no publish_id");
+  // Bytes are in; TikTok hasn't committed yet. The caller confirms.
+  return { externalId: publishId, pending: true };
+}
+
+// ------------------------------------------------------ publish status
+
+/** TikTok's terminal states for an upload, plus "still working on it". */
+export type PublishOutcome =
+  | { state: "pending" }
+  | { state: "posted"; postId: string | null; inbox: boolean }
+  | { state: "failed"; reason: string };
+
+interface StatusResponse {
+  data?: {
+    status?: string;
+    fail_reason?: string;
+    publicaly_available_post_id?: (number | string)[];
+    // TikTok's own docs carry the typo; tolerate the corrected spelling too in
+    // case they ever fix it.
+    publicly_available_post_id?: (number | string)[];
+  };
+  error?: { code?: string; message?: string };
+}
+
+/**
+ * Map a status response to a decision. Pure so the state machine is testable
+ * without a TikTok app — the network call is the easy part, deciding whether a
+ * creator's post really went live is the part worth being sure about.
+ */
+export function interpretStatus(json: StatusResponse): PublishOutcome {
+  const code = json.error?.code;
+  if (code && code !== "ok") {
+    return { state: "failed", reason: `${code}${json.error?.message ? `: ${json.error.message}` : ""}` };
+  }
+  const d = json.data ?? {};
+  const ids = d.publicaly_available_post_id ?? d.publicly_available_post_id ?? [];
+  const postId = ids.length > 0 ? String(ids[0]) : null;
+  switch (d.status) {
+    case "PUBLISH_COMPLETE":
+      return { state: "posted", postId, inbox: false };
+    case "SEND_TO_USER_INBOX":
+      // Draft mode's success: it's in the creator's TikTok inbox to publish.
+      return { state: "posted", postId, inbox: true };
+    case "FAILED":
+      return { state: "failed", reason: d.fail_reason || "tiktok rejected the upload" };
+    case "PROCESSING_UPLOAD":
+    case "PROCESSING_DOWNLOAD":
+      return { state: "pending" };
+    default:
+      // An unknown status is not a success. Stay pending; the caller's deadline
+      // turns a permanently-unknown post into a failure rather than a lie.
+      return { state: "pending" };
+  }
+}
+
+/** Ask TikTok what actually happened to an upload. */
+export async function fetchPublishStatus(
+  socialAccountId: string,
+  publishId: string
+): Promise<PublishOutcome> {
+  const token = await accessTokenFor(socialAccountId);
+  const res = await fetch(`${API}/post/publish/status/fetch/`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ publish_id: publishId }),
+  });
+  if (!res.ok) throw new Error(`tiktok status ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return interpretStatus((await res.json()) as StatusResponse);
+}
+
+/** Public URL for a confirmed post. TikTok returns only the numeric id. */
+export function postUrl(handle: string, postId: string): string {
+  return `https://www.tiktok.com/@${handle.replace(/^@/, "")}/video/${postId}`;
 }
