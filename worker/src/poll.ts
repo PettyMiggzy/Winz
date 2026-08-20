@@ -14,6 +14,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { processVideo } from "../engine/index.ts";
+import { probeDuration } from "../engine/ffmpeg.ts";
+import { buildChatSignal, type ChatBucketRow } from "./chat/buckets.ts";
+import { resolveLatestVod } from "./kickweb.ts";
 import { detectMusic } from "./music.ts";
 import { config } from "./config.ts";
 import { r2Configured, uploadFile } from "./r2.ts";
@@ -30,7 +33,19 @@ interface QueuedStream {
   title: string;
   clipLayout: string | null;
   facecam: string | null;
+  chatCaptureId: string | null;
+  startedAt: Date;
 }
+
+/**
+ * A Kick stream ended but its VOD isn't published yet, so the webhook enqueued
+ * the channel instead of a URL. The worker resolves it — kick.com blocks
+ * datacenter IPs, and only the worker has the residential proxy.
+ */
+const KICK_LATEST = "kick-latest:";
+/** How long to keep waiting for Kick to publish a VOD before giving up. */
+const VOD_WAIT_LIMIT_MS = 3 * 3600_000;
+const VOD_RETRY_MIN = 5;
 
 /** Parse the stored "x,y,w,h" facecam rect; null when unset or malformed. */
 function parseFacecam(raw: string | null): { x: number; y: number; w: number; h: number } | undefined {
@@ -112,6 +127,34 @@ async function ensureSchema(): Promise<void> {
     )`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS "Dub_clip_lang_uniq" ON "Dub"("clipId", lang)`;
   await sql`CREATE INDEX IF NOT EXISTS "Dub_tenantId_idx" ON "Dub"("tenantId")`;
+  await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "notBefore" timestamptz`;
+  await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "chatCaptureId" text`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS "ChatCapture" (
+      id text PRIMARY KEY,
+      "tenantId" text NOT NULL REFERENCES "Tenant"(id) ON DELETE CASCADE,
+      "broadcasterId" text NOT NULL,
+      slug text NOT NULL,
+      "chatroomId" text,
+      status text NOT NULL DEFAULT 'QUEUED',
+      "streamStartedAt" timestamptz NOT NULL,
+      "endedAt" timestamptz,
+      messages integer NOT NULL DEFAULT 0,
+      error text,
+      "claimedAt" timestamptz,
+      attempts integer NOT NULL DEFAULT 0,
+      "createdAt" timestamptz NOT NULL DEFAULT now()
+    )`;
+  await sql`CREATE INDEX IF NOT EXISTS "ChatCapture_tenantId_idx" ON "ChatCapture"("tenantId")`;
+  await sql`CREATE INDEX IF NOT EXISTS "ChatCapture_status_idx" ON "ChatCapture"(status)`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS "ChatBucket" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      "captureId" text NOT NULL REFERENCES "ChatCapture"(id) ON DELETE CASCADE,
+      minute integer NOT NULL,
+      counts integer[] NOT NULL
+    )`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS "ChatBucket_capture_minute_uniq" ON "ChatBucket"("captureId", minute)`;
   // Prevent duplicate live posts for the same clip+account (concurrent approve).
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS "Post_clip_account_live_uniq"
@@ -160,10 +203,11 @@ async function reapStale(): Promise<void> {
 /** Claim the oldest QUEUED stream (CAS on status). Returns null if none. */
 async function claimNext(): Promise<QueuedStream | null> {
   const found = await sql<QueuedStream[]>`
-    SELECT s.id, s."tenantId", s."sourceUrl", s.title,
+    SELECT s.id, s."tenantId", s."sourceUrl", s.title, s."chatCaptureId", s."startedAt",
            t."clipLayout", t.facecam
     FROM "Stream" s JOIN "Tenant" t ON t.id = s."tenantId"
     WHERE s.status = 'QUEUED'
+      AND (s."notBefore" IS NULL OR s."notBefore" <= now())
     ORDER BY s."startedAt" ASC LIMIT 1`;
   if (found.length === 0) return null;
   const s = found[0];
@@ -174,21 +218,80 @@ async function claimNext(): Promise<QueuedStream | null> {
   return claim.count === 1 ? s : null; // lost the race → try again next tick
 }
 
+/**
+ * Load the chat recorded while this stream was live and turn it into detector
+ * input, or explain why it can't be used. Returns an empty list on any doubt:
+ * chat anchored to the wrong offsets would aim the engine at the wrong
+ * moments, which is worse than having no chat signal at all.
+ */
+async function loadChatSignal(s: QueuedStream, durationSec: number): Promise<number[]> {
+  if (!s.chatCaptureId) return [];
+  const rows = await sql<ChatBucketRow[]>`
+    SELECT minute, counts FROM "ChatBucket"
+    WHERE "captureId" = ${s.chatCaptureId} ORDER BY minute ASC`;
+  const signal = buildChatSignal(rows, durationSec);
+  if (signal.rejected) {
+    console.warn(`[${s.id}] chat signal unused — ${signal.rejected}`);
+    return [];
+  }
+  console.info(`[${s.id}] chat signal: ${signal.messages} messages over the broadcast`);
+  return signal.timestamps;
+}
+
+/**
+ * Turn a `kick-latest:<slug>` placeholder into a real VOD URL. Kick publishes
+ * the VOD minutes after the stream ends, so "not there yet" is the normal
+ * first answer — the job goes back on the queue with a delay instead of
+ * failing. Returns null when it has been requeued (or abandoned).
+ */
+async function resolvePendingVod(s: QueuedStream): Promise<string | null> {
+  const slug = (s.sourceUrl ?? "").slice(KICK_LATEST.length);
+  const vod = slug ? await resolveLatestVod(slug) : null;
+  if (vod) {
+    await sql`UPDATE "Stream" SET "sourceUrl" = ${vod} WHERE id = ${s.id}`;
+    console.info(`[${s.id}] resolved VOD for ${slug}: ${vod}`);
+    return vod;
+  }
+  const waited = Date.now() - new Date(s.startedAt).getTime();
+  if (waited > VOD_WAIT_LIMIT_MS) {
+    await sql`UPDATE "Stream" SET status = 'FAILED' WHERE id = ${s.id} AND status = 'PROCESSING'`;
+    console.warn(`[${s.id}] no VOD for ${slug} after ${Math.round(waited / 60000)} min — giving up`);
+    return null;
+  }
+  // Not a real attempt — undo the claim's increment so waiting on Kick can't
+  // burn through the retry budget.
+  await sql`
+    UPDATE "Stream"
+    SET status = 'QUEUED', "claimedAt" = NULL, attempts = GREATEST(attempts - 1, 0),
+        "notBefore" = now() + make_interval(mins => ${VOD_RETRY_MIN})
+    WHERE id = ${s.id} AND status = 'PROCESSING'`;
+  console.info(`[${s.id}] VOD for ${slug} not published yet — retrying in ${VOD_RETRY_MIN} min`);
+  return null;
+}
+
 async function processOne(s: QueuedStream): Promise<void> {
   if (!s.sourceUrl) throw new Error("stream has no sourceUrl");
+  let sourceUrl = s.sourceUrl;
+  if (sourceUrl.startsWith(KICK_LATEST)) {
+    const vod = await resolvePendingVod(s);
+    if (!vod) return; // requeued with a delay, or abandoned
+    sourceUrl = vod;
+  }
   const dir = await mkdtemp(join(tmpdir(), "winclipz-"));
   const input = join(dir, "source.mp4");
   try {
     // Direct fetch for uploaded files; yt-dlp for YouTube/Kick/Twitch links.
-    await downloadSource(s.sourceUrl, input);
+    await downloadSource(sourceUrl, input);
 
     const outDir = join(config.workDir, s.tenantId, s.id);
     const layout = (s.clipLayout ?? "crop") as "crop" | "blurpad" | "split";
+    const chatTimestamps = await loadChatSignal(s, await probeDuration(input));
     const manifest = await processVideo(input, outDir, {
       styleHint: s.title,
       maxClipSec: 60,
       layout,
       facecam: parseFacecam(s.facecam),
+      chatTimestamps,
       onProgress: (stage, d) => {
         console.info(`[${s.id}] ${stage}${d ? ": " + d : ""}`);
         // Heartbeat the claim so a legitimately long job isn't reaped as dead.

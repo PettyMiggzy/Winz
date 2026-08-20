@@ -185,39 +185,6 @@ export async function subscribeToLivestreamEvents(accessToken: string): Promise<
   return res.ok;
 }
 
-/**
- * Newest VOD for a channel, as a yt-dlp-downloadable URL.
- *
- * Kick's *public* v1 API doesn't expose VODs, so this uses the same v2 endpoint
- * the yt-dlp extractor targets. It's undocumented and can change — callers must
- * treat null as "couldn't find it" and fall back to a manual link, never crash.
- */
-export async function getLatestVodUrl(channelSlug: string): Promise<string | null> {
-  try {
-    const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(channelSlug)}/videos`, {
-      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; WinClipz/1.0)" },
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as Array<{
-      video?: { uuid?: string };
-      uuid?: string;
-      created_at?: string;
-      start_time?: string;
-    }>;
-    if (!Array.isArray(json) || json.length === 0) return null;
-    // Newest first isn't guaranteed — sort by start/created time when present.
-    const sorted = [...json].sort((a, b) => {
-      const ta = Date.parse(b.start_time ?? b.created_at ?? "") || 0;
-      const tb = Date.parse(a.start_time ?? a.created_at ?? "") || 0;
-      return ta - tb;
-    });
-    const uuid = sorted[0]?.video?.uuid ?? sorted[0]?.uuid;
-    if (!uuid) return null;
-    return `https://kick.com/${channelSlug}/videos/${uuid}`;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Live event subscriptions for this app. Used to show whether auto-clipping is

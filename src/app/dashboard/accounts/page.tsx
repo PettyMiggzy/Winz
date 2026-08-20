@@ -58,6 +58,7 @@ export default async function AccountsPage({
                     ? "Channel connected, but stream events aren't subscribed yet — clips won't start on their own. Reconnect to arm it."
                     : "When your stream ends, WinClipz grabs the VOD and has clips waiting in your review queue. Nothing to paste."}
               </p>
+              {kick?.connected && kick.armed !== false && <ChatCaptureLine chat={kick.chat} />}
             </div>
           </div>
           {kick?.connected ? (
@@ -212,7 +213,7 @@ function WarmupStatus({ state, connected, platform }: { state: Account["warmupSt
  * steps, and users deserve to know which one they actually have.
  */
 async function getKickConnection(): Promise<
-  { connected: boolean; handle: string; armed: boolean | null } | null
+  { connected: boolean; handle: string; armed: boolean | null; chat: ChatState | null } | null
 > {
   if (!hasDatabase) return null;
   const user = await getSessionUser();
@@ -229,5 +230,52 @@ async function getKickConnection(): Promise<
     // null = couldn't check (API hiccup) → show "unknown", don't claim failure.
     armed = subs === null ? null : subs.some((x) => x.event === "livestream.status.updated");
   }
-  return { connected: acct.connected, handle: acct.handle, armed };
+  // The worker owns schema creation, so this table can trail a web deploy by a
+  // few minutes. A missing table must read as "nothing recorded yet", never as
+  // a broken accounts page.
+  const capture = await prisma.chatCapture
+    .findFirst({
+      where: { tenantId: user.tenantId },
+      orderBy: { streamStartedAt: "desc" },
+      select: { status: true, endedAt: true, messages: true },
+    })
+    .catch(() => null);
+  const chat: ChatState | null = capture
+    ? { live: capture.endedAt === null && capture.status === "RECORDING", messages: capture.messages }
+    : null;
+  return { connected: acct.connected, handle: acct.handle, armed, chat };
+}
+
+interface ChatState {
+  live: boolean;
+  messages: number;
+}
+
+/**
+ * Chat velocity is the signal the podcast-shaped clippers don't have — but it
+ * only exists if we were listening while the stream was on air. Say plainly
+ * which of those is true rather than implying a capability we didn't exercise.
+ */
+function ChatCaptureLine({ chat }: { chat: ChatState | null }) {
+  if (!chat) {
+    return (
+      <p className="mt-2 text-xs text-fog">
+        Chat velocity: nothing recorded yet — it starts on your next stream.
+      </p>
+    );
+  }
+  if (chat.live) {
+    return (
+      <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-brand">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
+        Recording chat now · {chat.messages.toLocaleString()} messages
+      </p>
+    );
+  }
+  return (
+    <p className="mt-2 text-xs text-fog">
+      Chat velocity: {chat.messages.toLocaleString()} messages captured last stream
+      {chat.messages > 0 ? " — the moments chat went off get scored higher." : "."}
+    </p>
+  );
 }

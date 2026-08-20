@@ -76,6 +76,7 @@ model Tenant {
   posts     Post[]
   apiKeys   ApiKey[]
   dubs      Dub[]
+  captures  ChatCapture[]
 }
 
 model User {
@@ -156,6 +157,12 @@ model Stream {
   sourceKey       String? // object key in R2
   sourceUrl       String? // public URL the worker fetches
   claimedAt       DateTime? // when a worker claimed it; stale claims get requeued
+  // Earliest the worker may claim this. Set when a Kick VOD isn't published
+  // yet, so the retry waits minutes instead of hammering the queue.
+  notBefore       DateTime?
+  // Live chat recorded while this stream was on air, if any.
+  chatCaptureId   String?
+  chatCapture     ChatCapture? @relation(fields: [chatCaptureId], references: [id], onDelete: SetNull)
   startedAt       DateTime     @default(now())
   endedAt         DateTime?
   durationSec     Int?
@@ -249,4 +256,46 @@ model Dub {
 
   @@unique([clipId, lang])
   @@index([tenantId])
+}
+
+/// One live stream's chat, recorded off Kick's public Pusher socket while the
+/// broadcast is on air. Chat velocity is the hype signal the podcast-shaped
+/// clippers don't have — when chat erupts, that's the clip.
+///
+/// Only counts are kept, never message text or authors.
+model ChatCapture {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  broadcasterId String // Kick broadcaster user_id
+  slug          String // Kick channel slug
+  chatroomId    String? // Pusher chatroom id, resolved by the worker
+  status        String    @default("QUEUED") // QUEUED | RECORDING | DONE
+  /// Kick's own stream start. Every offset is measured from this, and the VOD
+  /// is assumed to start at the same instant — get this wrong and the signal
+  /// points at the wrong moments, so it comes from Kick, never from our clock.
+  streamStartedAt DateTime
+  endedAt       DateTime?
+  messages      Int       @default(0)
+  error         String?
+  claimedAt     DateTime?
+  attempts      Int       @default(0)
+  createdAt     DateTime  @default(now())
+  buckets       ChatBucket[]
+  streams       Stream[]
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+/// One minute of chat velocity: 60 per-second message counts. Rewritten in
+/// place on each flush, so a crashed recorder loses at most one interval.
+model ChatBucket {
+  id        String      @id @default(cuid())
+  captureId String
+  capture   ChatCapture @relation(fields: [captureId], references: [id], onDelete: Cascade)
+  minute    Int // minutes since streamStartedAt
+  counts    Int[] // length 60, one per second
+
+  @@unique([captureId, minute])
 }

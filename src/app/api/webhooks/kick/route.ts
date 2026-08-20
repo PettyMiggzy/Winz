@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readSignatureHeaders, verifyWebhookSignature, getLatestVodUrl } from "@/lib/kick";
+import { readSignatureHeaders, verifyWebhookSignature } from "@/lib/kick";
 import { getPrisma } from "@/server/db";
 import { createStreamWithinQuota } from "@/server/limits";
 
@@ -91,33 +91,81 @@ export async function POST(req: Request) {
     }
   }
 
-  if (payload.is_live === false) {
-    const slug = payload.broadcaster?.channel_slug ?? payload.broadcaster?.username;
-    console.info("[kick] stream ended:", slug, payload.title);
-    if (!slug) return NextResponse.json({ ok: true, note: "no channel slug" });
+  const slug = payload.broadcaster?.channel_slug ?? payload.broadcaster?.username;
+  if (!slug) return NextResponse.json({ ok: true, note: "no channel slug" });
 
-    // Kick publishes the VOD moments after the stream ends; if it's not there
-    // yet we simply skip — the creator can still paste the link manually.
-    const vodUrl = await getLatestVodUrl(slug);
-    if (!vodUrl) {
-      console.warn("[kick] no VOD found yet for", slug);
-      return NextResponse.json({ ok: true, note: "no vod yet" });
+  if (payload.is_live === false) {
+    console.info("[kick] stream ended:", slug, payload.title);
+
+    // Close the live chat recording and hand it to the clip job. Chat velocity
+    // only exists if we captured it while the stream was on air — after the
+    // fact it's gone, so a stream that started before this workspace connected
+    // simply has no capture to attach.
+    // Chat capture is an enhancement, never a gate: if any of it fails the VOD
+    // still gets queued below. Losing the signal costs clip quality; letting it
+    // throw here would cost the whole auto-clip.
+    const capture = await prisma.chatCapture
+      .findFirst({
+        where: { tenantId: account.tenantId, broadcasterId: String(broadcasterId), endedAt: null },
+        orderBy: { streamStartedAt: "desc" },
+        select: { id: true },
+      })
+      .catch(() => null);
+    if (capture) {
+      await prisma.chatCapture
+        .update({
+          where: { id: capture.id },
+          data: { endedAt: payload.ended_at ? new Date(payload.ended_at) : new Date() },
+        })
+        .catch((e) => console.warn("[kick] could not close chat capture:", e));
     }
 
+    // Queue the channel, not a URL: Kick publishes the VOD minutes after the
+    // stream ends, and kick.com's VOD list 403s datacenter IPs anyway. The
+    // worker resolves it through the residential proxy and retries until it
+    // appears — resolving here would mean giving up on the first miss.
     const created = await createStreamWithinQuota(account.tenantId, {
       title: payload.title?.slice(0, 120) || `${slug} stream`,
       status: "QUEUED",
-      sourceUrl: vodUrl,
+      sourceUrl: `kick-latest:${slug}`,
+      chatCaptureId: capture?.id ?? null,
       endedAt: payload.ended_at ? new Date(payload.ended_at) : new Date(),
     });
     if (!created.ok) {
       console.warn("[kick] auto-clip skipped (quota):", created.error);
       return NextResponse.json({ ok: true, note: "quota reached" });
     }
-    console.info("[kick] queued VOD for auto-clipping:", vodUrl);
+    console.info("[kick] queued", slug, "for auto-clipping (chat:", capture?.id ?? "none", ")");
     return NextResponse.json({ ok: true, queued: created.id });
   }
 
-  console.info("[kick] stream started:", payload.broadcaster?.channel_slug, payload.title);
+  console.info("[kick] stream started:", slug, payload.title);
+  // Start recording chat velocity for the whole broadcast. The worker picks
+  // this up within seconds and holds a socket open until the stream ends.
+  if (payload.is_live === true) {
+    try {
+      const open = await prisma.chatCapture.findFirst({
+        where: { tenantId: account.tenantId, broadcasterId: String(broadcasterId), endedAt: null },
+        select: { id: true },
+      });
+      if (!open) {
+        const started = payload.started_at ? new Date(payload.started_at) : new Date();
+        const capture = await prisma.chatCapture.create({
+          data: {
+            tenantId: account.tenantId,
+            broadcasterId: String(broadcasterId),
+            slug,
+            // Kick's own start time, not ours — every chat offset is measured
+            // from it and matched against a VOD that starts at the same instant.
+            streamStartedAt: Number.isNaN(started.getTime()) ? new Date() : started,
+          },
+        });
+        console.info("[kick] chat capture queued:", capture.id, slug);
+      }
+    } catch (e) {
+      // Same rule: no chat signal is survivable, a 500 back to Kick isn't.
+      console.warn("[kick] could not start chat capture:", e);
+    }
+  }
   return NextResponse.json({ ok: true });
 }

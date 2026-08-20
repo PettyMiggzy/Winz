@@ -50,6 +50,7 @@ The system in production. Two things run; they share a database and a bucket.
 | `BLOTATO_API_KEY` | fallback vendor bridge |
 | `AUDD_API_KEY` | optional music fingerprinting gate |
 | `ELEVENLABS_API_KEY` | clip translation (dubbing in the creator's own voice) |
+| `KICK_PUSHER_KEY` `KICK_PUSHER_CLUSTER` | optional overrides for Kick's public chat socket — set only if Kick rotates them |
 
 Boot logs confess the config: `database host: …`, `R2: configured/NOT
 CONFIGURED`, and which posting providers are active. Read them after every
@@ -67,19 +68,58 @@ deploy.
 ## Kick auto-clipping (zero-touch)
 
 Connect a Kick channel in Dashboard → Accounts and WinClipz subscribes to that
-broadcaster's `livestream.status.updated` events. When a stream ends:
+broadcaster's `livestream.status.updated` events. Requires the Kick app's
+webhook URL to point at `https://<app>/api/webhooks/kick`.
+
+**Stream starts** → the webhook opens a `ChatCapture` and the worker's chat
+recorder picks it up within seconds (see below).
+
+**Stream ends** →
 
 1. The webhook matches `broadcaster.user_id` to a connected SocialAccount —
    this, not the signature, is what proves the event belongs to a workspace
    (Kick signs every app's webhooks with one global key).
-2. The newest VOD is resolved via Kick's v2 videos endpoint (undocumented; the
-   same one yt-dlp targets — treated as best-effort, never fatal).
-3. A QUEUED Stream is created under the workspace's monthly quota; the worker
-   downloads the VOD with yt-dlp (through the residential proxy) and clips it.
+2. The open `ChatCapture` is closed and attached to the new Stream.
+3. A QUEUED Stream is created under the workspace's monthly quota with
+   `sourceUrl = kick-latest:<slug>` — a placeholder, not a URL.
+4. The worker resolves the real VOD through the residential proxy, then
+   downloads and clips it.
 
-If the VOD isn't published yet the event is skipped — the creator can still
-paste the link manually. Requires the Kick app's webhook URL to point at
-`https://<app>/api/webhooks/kick`.
+VOD resolution lives in the worker on purpose: kick.com's VOD list is
+Cloudflare-fronted and **403s datacenter IPs**, so resolving it from Vercel
+silently returned nothing. The worker also retries — Kick publishes a VOD
+minutes after the stream ends, so "not there yet" is the normal first answer.
+It re-checks every 5 minutes for up to 3 hours (via `Stream.notBefore`, and
+without spending a retry attempt), then gives up.
+
+## Chat velocity (the signal competitors don't have)
+
+OpusClip, Vizard and Klap score on speech density — they were built for
+podcasts, so on a stream they find the streamer *talking*, not the moment chat
+lost its mind. WinClipz records chat while the stream is live and feeds
+messages-per-second into clip scoring.
+
+- **Capture:** the worker holds a socket open on Kick's public Pusher endpoint
+  (`chatrooms.<id>.v2`) for the whole broadcast, up to 5 channels at once. The
+  documented `chat.message.sent` webhook caps unverified apps at 1,000 messages
+  — minutes on a busy stream — so the socket is the only option that covers a
+  full broadcast.
+- **Storage:** per-second counts in minute-sized rows (`ChatBucket`). A 12-hour
+  stream is 720 small rows. **No message text or authors are ever stored.**
+- **Scoring:** spikes are shifted back ~8s (chat reacts *after* the moment) and
+  handed to the LLM alongside audio-energy peaks; they also anchor the
+  speech-light fallback, so a wordless gameplay moment still becomes a clip.
+
+**The alignment gate.** Chat offsets are measured from Kick's `started_at` and
+assume the VOD starts at the same instant. If that's wrong, every offset is
+wrong and the engine gets aimed at the wrong moments — worse than no signal. So
+the worker refuses the signal rather than guessing when under 50% of chat falls
+inside the video's duration, or fewer than 200 messages were captured. Look for
+`chat signal unused — …` in the job log; clips still get cut, just without it.
+
+Chat capture only exists if we were listening. A stream that started before the
+workspace connected Kick has no capture, and the Accounts page says so plainly
+instead of implying otherwise.
 
 ## Clip translation (ElevenLabs)
 
