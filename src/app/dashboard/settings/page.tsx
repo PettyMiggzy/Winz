@@ -1,6 +1,8 @@
 import { Topbar } from "@/components/dashboard/Topbar";
 import { SettingsForm } from "@/components/dashboard/SettingsForm";
 import { ApiKeysPanel } from "@/components/dashboard/ApiKeysPanel";
+import { DubbingPanel } from "@/components/dashboard/DubbingPanel";
+import { getPrisma } from "@/server/db";
 import { getSessionUser } from "@/server/auth";
 import { checkVideoQuota } from "@/server/limits";
 import { planFor } from "@/lib/plans";
@@ -42,12 +44,27 @@ async function PlanUsage() {
   );
 }
 
+async function Dubbing() {
+  if (!hasDatabase) return null;
+  const user = await getSessionUser();
+  if (!user) return null;
+  const prisma = getPrisma()!;
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: user.tenantId },
+    select: { dubLanguages: true },
+  });
+  const initial = (tenant?.dubLanguages ?? "").split(",").map((l) => l.trim()).filter(Boolean);
+  const limits = planFor(user.plan);
+  return <DubbingPanel initial={initial} cap={limits.dubLanguages} planLabel={limits.label} />;
+}
+
 export default function SettingsPage() {
   return (
     <>
       <Topbar title="Settings" subtitle="Branding, captions, posting cadence, and safety — all in one place." />
       <div className="space-y-6 px-5 py-6 sm:px-8">
         <PlanUsage />
+        <Dubbing />
         <SettingsForm />
         <ApiKeysPanel />
       </div>

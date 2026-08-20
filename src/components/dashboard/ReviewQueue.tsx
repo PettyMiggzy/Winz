@@ -6,6 +6,7 @@ import { ClipThumb } from "@/components/dashboard/ClipThumb";
 import { PlatformBadge } from "@/components/PlatformBadge";
 import { IconCheck, IconBolt, IconMusicOff } from "@/components/Icons";
 import { TikTokApproveDialog, type TikTokPostOptions } from "@/components/dashboard/TikTokApproveDialog";
+import { languageLabel } from "@/lib/languages";
 
 type Decision = "pending" | "approved" | "skipped";
 const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
@@ -154,6 +155,11 @@ export function ReviewQueue({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-brand/15 px-2 py-0.5 text-xs font-bold text-brand">🔥 {c.score}</span>
+                  {c.lang && (
+                    <span className="rounded-full bg-violet/15 px-2 py-0.5 text-xs font-semibold text-violet">
+                      {languageLabel(c.lang)}
+                    </span>
+                  )}
                   <span className="text-xs text-fog">{c.signal}</span>
                   {c.flaggedMusic && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-magenta/15 px-2 py-0.5 text-xs font-semibold text-magenta-soft">

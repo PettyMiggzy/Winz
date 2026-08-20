@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { getPrisma } from "@/server/db";
 import { getSessionTenantId } from "@/server/auth";
 import { daysSince, warmupStateFor } from "@/lib/ramp";
+import { planFor } from "@/lib/plans";
 import {
   clips as seedClips,
   streams as seedStreams,
@@ -79,6 +80,7 @@ export async function getClips(): Promise<Clip[]> {
         : undefined;
     return {
       videoUrl,
+      lang: c.lang ?? undefined,
       id: c.id,
       title: c.title,
       hook: c.hook ?? "",
@@ -194,6 +196,37 @@ export function getChannel() {
   return CHANNEL;
 }
 
+/**
+ * Queue a Dub row per configured language for a freshly approved ORIGINAL clip.
+ * Skips dubbed clips (no dub-of-a-dub), workspaces with dubbing off, and plans
+ * that don't include it. Unique (clipId, lang) makes re-approval idempotent.
+ */
+async function enqueueDubs(
+  prisma: NonNullable<ReturnType<typeof getPrisma>>,
+  clipId: string,
+  tenantId: string
+): Promise<void> {
+  const [clip, tenant] = await Promise.all([
+    prisma.clip.findUnique({ where: { id: clipId }, select: { lang: true, storageKey: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { plan: true, dubLanguages: true } }),
+  ]);
+  if (!clip || clip.lang) return; // already a dub — don't translate a translation
+  if (!clip.storageKey || clip.storageKey.startsWith("/")) return; // not in cloud storage
+  const wanted = (tenant?.dubLanguages ?? "")
+    .split(",")
+    .map((l) => l.trim().toLowerCase())
+    .filter(Boolean);
+  if (wanted.length === 0) return;
+  const cap = planFor(tenant?.plan ?? "FREE").dubLanguages;
+  const langs = wanted.slice(0, cap);
+  if (langs.length === 0) return;
+
+  await prisma.dub.createMany({
+    data: langs.map((lang) => ({ tenantId, clipId, lang })),
+    skipDuplicates: true,
+  });
+}
+
 export interface PostRow {
   id: string;
   clipTitle: string;
@@ -257,6 +290,12 @@ export async function recordClipDecision(
     },
   });
   if (res.count === 0) return { ok: false, notFound: true };
+
+  // On approve, queue translated versions (same voice) if the workspace wants
+  // them. A dubbed clip is itself a Clip, so never dub a dub — that would loop.
+  if (decision === "approve") {
+    await enqueueDubs(prisma, clipId, tenantId);
+  }
 
   // On approve, fan the clip out to the tenant's connected accounts as SCHEDULED
   // Posts. The worker's publish poller picks these up and posts them. Scope to

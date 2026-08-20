@@ -60,6 +60,9 @@ model Tenant {
   // Plan tier: ADMIN (founder — unlimited), FREE, PRO. String (not enum) so
   // adding tiers later is data, not a migration.
   plan      String          @default("FREE")
+  // Comma-separated ISO language codes to auto-dub approved clips into
+  // (e.g. "es,pt"). Empty/null = dubbing off.
+  dubLanguages String?
   createdAt DateTime        @default(now())
   users     User[]
   accounts  SocialAccount[]
@@ -67,6 +70,7 @@ model Tenant {
   clips     Clip[]
   posts     Post[]
   apiKeys   ApiKey[]
+  dubs      Dub[]
 }
 
 model User {
@@ -173,8 +177,13 @@ model Clip {
   storageKey        String?
   startMs           Int?
   endMs             Int?
+  // Dubbed variants: lang is the spoken language, sourceClipId points at the
+  // original clip this was dubbed from (null for originals).
+  lang              String?
+  sourceClipId      String?
   createdAt         DateTime   @default(now())
   posts             Post[]
+  dubs              Dub[]
 
   @@index([tenantId, status])
   @@index([streamId])
@@ -213,4 +222,26 @@ model WebhookEvent {
   messageId  String   @unique
   payload    Json
   receivedAt DateTime @default(now())
+}
+
+/// A requested dub of one clip into one language. The worker claims QUEUED rows,
+/// sends the clip to ElevenLabs, waits for the dub, stores the result in R2, and
+/// creates a new Clip row for it so it flows through review + posting normally.
+model Dub {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clipId     String
+  clip       Clip      @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  lang       String
+  status     String    @default("QUEUED") // QUEUED | PROCESSING | DONE | FAILED
+  externalId String? // ElevenLabs dubbing_id
+  dubClipId  String? // the Clip row created for the finished dub
+  error      String?
+  claimedAt  DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@unique([clipId, lang])
+  @@index([tenantId])
 }

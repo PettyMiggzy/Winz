@@ -79,6 +79,25 @@ async function ensureSchema(): Promise<void> {
       count integer NOT NULL DEFAULT 0,
       "resetAt" timestamptz NOT NULL
     )`;
+  await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "dubLanguages" text`;
+  await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "lang" text`;
+  await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "sourceClipId" text`;
+  await sql`
+    CREATE TABLE IF NOT EXISTS "Dub" (
+      id text PRIMARY KEY,
+      "tenantId" text NOT NULL REFERENCES "Tenant"(id) ON DELETE CASCADE,
+      "clipId" text NOT NULL REFERENCES "Clip"(id) ON DELETE CASCADE,
+      lang text NOT NULL,
+      status text NOT NULL DEFAULT 'QUEUED',
+      "externalId" text,
+      "dubClipId" text,
+      error text,
+      "claimedAt" timestamptz,
+      attempts integer NOT NULL DEFAULT 0,
+      "createdAt" timestamptz NOT NULL DEFAULT now()
+    )`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS "Dub_clip_lang_uniq" ON "Dub"("clipId", lang)`;
+  await sql`CREATE INDEX IF NOT EXISTS "Dub_tenantId_idx" ON "Dub"("tenantId")`;
   // Prevent duplicate live posts for the same clip+account (concurrent approve).
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS "Post_clip_account_live_uniq"

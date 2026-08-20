@@ -27,6 +27,8 @@ export interface Clip {
   thumbTint: string; // gradient class for the placeholder thumb
   /** Public URL of the rendered mp4 (real clips in cloud storage only). */
   videoUrl?: string;
+  /** Set on dubbed variants (ISO code) — originals leave this undefined. */
+  lang?: string;
 }
 
 export const clips: Clip[] = [

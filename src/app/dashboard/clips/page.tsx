@@ -5,6 +5,7 @@ import { PlatformBadge } from "@/components/PlatformBadge";
 import { IconHeart, IconEye, IconMusicOff } from "@/components/Icons";
 import { type ClipStatus } from "@/lib/mock";
 import { getClips } from "@/server/store";
+import { languageLabel } from "@/lib/languages";
 
 const STATUS_STYLE: Record<ClipStatus, string> = {
   review: "bg-brand/15 text-brand",
@@ -65,6 +66,11 @@ export default async function ClipsPage({
               </div>
               <div className="px-3 pb-3">
                 <p className="line-clamp-2 text-sm font-semibold leading-snug">{c.title}</p>
+                {c.lang && (
+                  <span className="mt-1 inline-block rounded-full bg-violet/15 px-2 py-0.5 text-[10px] font-semibold text-violet">
+                    {languageLabel(c.lang)}
+                  </span>
+                )}
                 {c.videoUrl && (
                   <a href={c.videoUrl} download target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] font-medium text-brand hover:underline">
                     Download MP4 ↓
