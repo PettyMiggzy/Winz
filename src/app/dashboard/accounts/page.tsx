@@ -6,6 +6,7 @@ import { type Platform, type Account } from "@/lib/mock";
 import { getAccounts } from "@/server/store";
 import { getPrisma, hasDatabase } from "@/server/db";
 import { getSessionUser } from "@/server/auth";
+import { listEventSubscriptions } from "@/lib/kick";
 import { rampCapForDay, warmupPercent } from "@/lib/ramp";
 
 const PLATFORMS: Platform[] = ["tiktok", "youtube", "instagram"];
@@ -51,16 +52,25 @@ export default async function AccountsPage({
                   : "Auto-clip every stream"}
               </p>
               <p className="mt-0.5 max-w-2xl text-sm text-fog">
-                {kick?.connected
-                  ? "When your stream ends, WinClipz grabs the VOD and has clips waiting in your review queue. Nothing to paste."
-                  : "Connect your Kick channel and WinClipz clips every stream automatically the moment it ends — you wake up to a full review queue."}
+                {!kick?.connected
+                  ? "Connect your Kick channel and WinClipz clips every stream automatically the moment it ends — you wake up to a full review queue."
+                  : kick.armed === false
+                    ? "Channel connected, but stream events aren't subscribed yet — clips won't start on their own. Reconnect to arm it."
+                    : "When your stream ends, WinClipz grabs the VOD and has clips waiting in your review queue. Nothing to paste."}
               </p>
             </div>
           </div>
           {kick?.connected ? (
-            <span className="pill shrink-0">
-              <IconCheck className="h-3.5 w-3.5 text-brand" /> connected
-            </span>
+            kick.armed === false ? (
+              <a href="/api/auth/kick/start" className="btn-primary shrink-0">
+                Re-arm auto-clipping <IconArrow className="h-4 w-4" />
+              </a>
+            ) : (
+              <span className="pill shrink-0">
+                <IconCheck className="h-3.5 w-3.5 text-brand" />
+                {kick.armed ? "armed" : "connected"}
+              </span>
+            )
           ) : (
             <a href="/api/auth/kick/start" className="btn-primary shrink-0">
               Connect Kick <IconArrow className="h-4 w-4" />
@@ -196,15 +206,28 @@ function WarmupStatus({ state, connected, platform }: { state: Account["warmupSt
   );
 }
 
-/** The workspace's connected Kick channel, if any. */
-async function getKickConnection(): Promise<{ connected: boolean; handle: string } | null> {
+/**
+ * The workspace's connected Kick channel plus whether stream events are really
+ * subscribed — connecting the channel and arming auto-clipping are separate
+ * steps, and users deserve to know which one they actually have.
+ */
+async function getKickConnection(): Promise<
+  { connected: boolean; handle: string; armed: boolean | null } | null
+> {
   if (!hasDatabase) return null;
   const user = await getSessionUser();
   const prisma = getPrisma();
   if (!user || !prisma) return null;
   const acct = await prisma.socialAccount.findFirst({
     where: { tenantId: user.tenantId, platform: "KICK" },
-    select: { connected: true, handle: true },
+    select: { connected: true, handle: true, accessToken: true },
   });
-  return acct ? { connected: acct.connected, handle: acct.handle } : null;
+  if (!acct) return null;
+  let armed: boolean | null = null;
+  if (acct.connected && acct.accessToken) {
+    const subs = await listEventSubscriptions(acct.accessToken);
+    // null = couldn't check (API hiccup) → show "unknown", don't claim failure.
+    armed = subs === null ? null : subs.some((x) => x.event === "livestream.status.updated");
+  }
+  return { connected: acct.connected, handle: acct.handle, armed };
 }

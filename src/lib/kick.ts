@@ -218,3 +218,23 @@ export async function getLatestVodUrl(channelSlug: string): Promise<string | nul
     return null;
   }
 }
+
+/**
+ * Live event subscriptions for this app. Used to show whether auto-clipping is
+ * actually armed — "channel connected" and "subscribed to stream events" are
+ * different things, and only the second one makes clips appear by themselves.
+ */
+export async function listEventSubscriptions(
+  accessToken: string
+): Promise<{ id: string; event: string }[] | null> {
+  try {
+    const res = await fetch(`${KICK_API_BASE}/events/subscriptions`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: { id?: string; event?: string }[] };
+    return (json.data ?? []).map((s) => ({ id: s.id ?? "", event: s.event ?? "" }));
+  } catch {
+    return null; // network/API hiccup — caller shows "unknown", never crashes
+  }
+}
