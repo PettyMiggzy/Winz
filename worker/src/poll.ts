@@ -130,7 +130,16 @@ async function ensureSchema(): Promise<void> {
   await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS error text`;
   // Uploaded-but-unconfirmed. Deliberately outside the reaper's requeue window:
   // re-claiming one of these would post the clip a second time.
-  await sql`ALTER TYPE "PostStatus" ADD VALUE IF NOT EXISTS 'PROCESSING'`;
+  //
+  // Simple protocol on purpose: ALTER TYPE ... ADD VALUE is rejected inside a
+  // transaction block on older servers, and the extended protocol wraps
+  // statements in one. Non-fatal — a worker that can't add the value should
+  // still cut clips, so it warns instead of taking the process down.
+  try {
+    await sql.unsafe(`ALTER TYPE "PostStatus" ADD VALUE IF NOT EXISTS 'PROCESSING'`).simple();
+  } catch (e) {
+    console.warn("[winclipz-worker] could not add PostStatus.PROCESSING:", e instanceof Error ? e.message : e);
+  }
   await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "notBefore" timestamptz`;
   await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "chatCaptureId" text`;
   await sql`
