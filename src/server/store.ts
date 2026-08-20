@@ -3,6 +3,7 @@ import { getPrisma } from "@/server/db";
 import { getSessionTenantId } from "@/server/auth";
 import { daysSince, warmupStateFor } from "@/lib/ramp";
 import { planFor } from "@/lib/plans";
+import { planSlots } from "@/server/schedule";
 import {
   clips as seedClips,
   streams as seedStreams,
@@ -234,6 +235,8 @@ export interface PostRow {
   accountHandle: string;
   status: "scheduled" | "posting" | "posted" | "failed";
   when: string;
+  /** For queued posts: when it's due, in absolute local-ish terms. */
+  dueAt?: string;
   externalUrl?: string;
 }
 
@@ -257,6 +260,12 @@ export async function getPosts(): Promise<PostRow[]> {
     accountHandle: p.account.handle,
     status: p.status.toLowerCase() as PostRow["status"],
     when: relTime(p.postedAt ?? p.scheduledFor ?? p.createdAt),
+    dueAt:
+      p.status === "SCHEDULED" && p.scheduledFor
+        ? p.scheduledFor.toLocaleString("en-US", {
+            weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "UTC",
+          }) + " UTC"
+        : undefined,
     externalUrl: p.externalUrl ?? undefined,
   }));
 }
@@ -303,8 +312,9 @@ export async function recordClipDecision(
   if (decision === "approve") {
     const clip = await prisma.clip.findUnique({
       where: { id: clipId },
-      select: { tenantId: true, assignedPlatform: true },
+      select: { tenantId: true, assignedPlatform: true, tenant: { select: { plan: true } } },
     });
+    const tenantPlan = clip?.tenant?.plan ?? "FREE";
     if (clip) {
       const platformFilter = clip.assignedPlatform ?? undefined;
       const accounts = await prisma.socialAccount.findMany({
@@ -314,7 +324,7 @@ export async function recordClipDecision(
           warmupState: { not: "NEW" }, // NEW accounts haven't started their ramp
           ...(platformFilter ? { platform: platformFilter } : {}),
         },
-        select: { id: true, platform: true },
+        select: { id: true, platform: true, connectedAt: true },
       });
       if (accounts.length > 0) {
         // Skip accounts that already have a live Post for this clip (idempotent
@@ -330,28 +340,26 @@ export async function recordClipDecision(
         const seen = new Set(existing.map((e) => e.accountId));
         const toCreate = accounts.filter((a) => !seen.has(a.id));
         if (toCreate.length > 0) {
-          // Stagger: never post to two accounts at once. First goes out with a
-          // small jitter, each next one 90–120 min later (spam-detection
-          // guidance: >=90 min spacing, randomized, never simultaneous).
-          let t = Date.now() + Math.floor(Math.random() * 5) * 60_000;
+          // Each account gets its own slot: inside its daily warm-up allowance,
+          // spaced from its other posts, overflowing to later days rather than
+          // dumping a week of clips in one afternoon.
+          const tierMax = planFor(tenantPlan).accountsPerPlatform;
+          const slots = await planSlots(prisma, toCreate, tierMax);
+          const slotFor = new Map(slots.map((s) => [s.accountId, s.scheduledFor]));
           await prisma.post.createMany({
             skipDuplicates: true, // partial-unique (clipId,accountId) backstops the race
-            data: toCreate.map((a) => {
-              const scheduledFor = new Date(t);
-              t += (90 + Math.floor(Math.random() * 30)) * 60_000;
-              return {
-                tenantId: clip.tenantId,
-                clipId,
-                accountId: a.id,
-                platform: a.platform,
-                status: "SCHEDULED" as const,
-                scheduledFor,
-                // Publish options chosen at approval (TikTok privacy etc.).
-                ...(postMeta && a.platform === "TIKTOK"
-                  ? { meta: postMeta as Prisma.InputJsonValue }
-                  : {}),
-              };
-            }),
+            data: toCreate.map((a) => ({
+              tenantId: clip.tenantId,
+              clipId,
+              accountId: a.id,
+              platform: a.platform,
+              status: "SCHEDULED" as const,
+              scheduledFor: slotFor.get(a.id) ?? new Date(),
+              // Publish options chosen at approval (TikTok privacy etc.).
+              ...(postMeta && a.platform === "TIKTOK"
+                ? { meta: postMeta as Prisma.InputJsonValue }
+                : {}),
+            })),
           });
           await prisma.clip.update({ where: { id: clipId }, data: { status: "SCHEDULED" } });
         }

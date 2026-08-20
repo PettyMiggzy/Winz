@@ -15,7 +15,7 @@ export default async function PostsPage() {
     <>
       <Topbar
         title="Posts"
-        subtitle="Every post the machine has sent (or scheduled) to your accounts."
+        subtitle="Every post the machine has sent or queued. Queued clips drip out on each account's own cadence instead of all at once."
       />
       <div className="px-5 py-6 sm:px-8">
         {posts.length === 0 ? (
@@ -63,7 +63,9 @@ export default async function PostsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-fog">{p.when}</td>
+                    <td className="px-4 py-3 text-fog">
+                      {p.dueAt ? <>goes out {p.dueAt}</> : p.when}
+                    </td>
                   </tr>
                 ))}
               </tbody>
