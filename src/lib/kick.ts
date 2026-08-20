@@ -146,3 +146,75 @@ export async function verifyWebhookSignature(
   const pem = await getKickPublicKey();
   return verifyEventSignature(rawBody, headers, pem);
 }
+
+// ------------------------------------------------- channel + auto-clip helpers
+
+export interface KickUser {
+  user_id: number;
+  name: string;
+  profile_picture?: string;
+}
+
+/** The authenticated user (GET /public/v1/users with no ids returns "me"). */
+export async function getCurrentUser(accessToken: string): Promise<KickUser | null> {
+  const res = await fetch(`${KICK_API_BASE}/users`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return null;
+  const json = (await res.json()) as { data?: KickUser[] };
+  return json.data?.[0] ?? null;
+}
+
+/**
+ * Subscribe this app to a broadcaster's livestream status events, so we're told
+ * the moment a stream ends. Returns true when the subscription is live.
+ */
+export async function subscribeToLivestreamEvents(accessToken: string): Promise<boolean> {
+  const res = await fetch(`${KICK_API_BASE}/events/subscriptions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    // With a user token the broadcaster is inferred from the token itself.
+    body: JSON.stringify({
+      events: [{ name: "livestream.status.updated", version: 1 }],
+      method: "webhook",
+    }),
+  });
+  return res.ok;
+}
+
+/**
+ * Newest VOD for a channel, as a yt-dlp-downloadable URL.
+ *
+ * Kick's *public* v1 API doesn't expose VODs, so this uses the same v2 endpoint
+ * the yt-dlp extractor targets. It's undocumented and can change — callers must
+ * treat null as "couldn't find it" and fall back to a manual link, never crash.
+ */
+export async function getLatestVodUrl(channelSlug: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(channelSlug)}/videos`, {
+      headers: { Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; WinClipz/1.0)" },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as Array<{
+      video?: { uuid?: string };
+      uuid?: string;
+      created_at?: string;
+      start_time?: string;
+    }>;
+    if (!Array.isArray(json) || json.length === 0) return null;
+    // Newest first isn't guaranteed — sort by start/created time when present.
+    const sorted = [...json].sort((a, b) => {
+      const ta = Date.parse(b.start_time ?? b.created_at ?? "") || 0;
+      const tb = Date.parse(a.start_time ?? a.created_at ?? "") || 0;
+      return ta - tb;
+    });
+    const uuid = sorted[0]?.video?.uuid ?? sorted[0]?.uuid;
+    if (!uuid) return null;
+    return `https://kick.com/${channelSlug}/videos/${uuid}`;
+  } catch {
+    return null;
+  }
+}

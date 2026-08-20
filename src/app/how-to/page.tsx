@@ -17,12 +17,30 @@ interface Step {
 const steps: Step[] = [
   {
     n: "1",
-    h: "Upload a video",
+    h: "Connect Kick — then never touch it again",
     body: (
       <>
         <p>
-          Go to <Code>Dashboard → Upload</Code>, then drag in a video file (or tap to
-          pick one). Any MP4 works — a full stream VOD, a YouTube export, or a short
+          In <Code>Dashboard → Accounts</Code>, hit <b>Connect Kick</b>. From then
+          on, the moment a stream ends WinClipz grabs the VOD by itself and starts
+          cutting. You wake up to a review queue full of clips — nothing to upload,
+          nothing to paste.
+        </p>
+        <p>
+          Prefer to do it by hand, or clip something that isn&rsquo;t a Kick stream?
+          Every step below still works on its own.
+        </p>
+      </>
+    ),
+  },
+  {
+    n: "2",
+    h: "Or add a video yourself",
+    body: (
+      <>
+        <p>
+          Go to <Code>Dashboard → Upload</Code> — paste a link (YouTube, Kick,
+          Twitch) or drag in a video file. Any MP4 works — a full stream VOD, a YouTube export, or a short
           recording. The file uploads straight to secure storage; nothing is posted
           anywhere yet.
         </p>
@@ -34,7 +52,7 @@ const steps: Step[] = [
     ),
   },
   {
-    n: "2",
+    n: "3",
     h: "The AI finds the best moments",
     body: (
       <>
@@ -53,7 +71,7 @@ const steps: Step[] = [
     ),
   },
   {
-    n: "3",
+    n: "4",
     h: "Review &amp; approve",
     body: (
       <>
@@ -71,8 +89,8 @@ const steps: Step[] = [
     ),
   },
   {
-    n: "4",
-    h: "Connect your accounts",
+    n: "5",
+    h: "Connect your posting accounts",
     body: (
       <>
         <p>
@@ -89,7 +107,7 @@ const steps: Step[] = [
     ),
   },
   {
-    n: "5",
+    n: "6",
     h: "Auto-posting",
     body: (
       <>
@@ -115,6 +133,10 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   {
     q: "Will the same clip get flagged for being posted to multiple accounts?",
     a: <>WinClipz cuts multiple distinct moments from each video, and when a clip posts to more than one of your accounts it&rsquo;s spaced out on a staggered schedule (90+ minutes apart, never simultaneously) rather than blasted everywhere at once. New accounts also ramp up gradually.</>,
+  },
+  {
+    q: "Can my clips reach people who don't speak my language?",
+    a: <>Yes — turn on translation in Settings and approved clips are also produced in other languages, <i>spoken in your own voice</i>. Each one lands in the review queue as its own clip, so you can post it to a separate account.</>,
   },
   {
     q: "Does it store my passwords?",

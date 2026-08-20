@@ -10,11 +10,11 @@ export const dynamic = "force-dynamic";
  * Begin the Kick OAuth flow. Stores the PKCE verifier and CSRF state in
  * short-lived httpOnly cookies, then redirects to Kick's authorize screen.
  */
-export async function GET() {
+export async function GET(req: Request) {
   if (!process.env.KICK_CLIENT_ID || !process.env.KICK_REDIRECT_URI) {
-    return NextResponse.json(
-      { error: "Kick OAuth is not configured. Set KICK_CLIENT_ID and KICK_REDIRECT_URI." },
-      { status: 501 }
+    // Not wired yet — send the user somewhere useful instead of raw JSON.
+    return NextResponse.redirect(
+      new URL("/dashboard/accounts?error=not_configured&provider=kick", new URL(req.url).origin)
     );
   }
 

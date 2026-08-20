@@ -32,6 +32,7 @@ The system in production. Two things run; they share a database and a bucket.
 | `ADMIN_EMAILS` | comma-separated emails that claim the founding workspace as ADMIN on signup |
 | `R2_ACCOUNT_ID` `R2_ACCESS_KEY_ID` `R2_SECRET_ACCESS_KEY` `R2_BUCKET` `R2_PUBLIC_BASE_URL` | Cloudflare R2 storage |
 | `TIKTOK_CLIENT_KEY` `TIKTOK_CLIENT_SECRET` `TIKTOK_REDIRECT_URI` | own TikTok app (Login Kit); sandbox creds until approved |
+| `KICK_CLIENT_ID` `KICK_CLIENT_SECRET` `KICK_REDIRECT_URI` | Kick app — enables auto-clipping every stream |
 | `TIKTOK_SCOPES` | optional override; must match scopes enabled on the app/sandbox |
 | `INSTAGRAM_CLIENT_ID` `INSTAGRAM_CLIENT_SECRET` `INSTAGRAM_REDIRECT_URI` | Meta app (Instagram Login), when configured |
 
@@ -48,6 +49,7 @@ The system in production. Two things run; they share a database and a bucket.
 | `UPLOADPOST_API_KEY` | vendor posting bridge (researched pick, $16/mo) — TikTok/IG/YT via their approved app |
 | `BLOTATO_API_KEY` | fallback vendor bridge |
 | `AUDD_API_KEY` | optional music fingerprinting gate |
+| `ELEVENLABS_API_KEY` | clip translation (dubbing in the creator's own voice) |
 
 Boot logs confess the config: `database host: …`, `R2: configured/NOT
 CONFIGURED`, and which posting providers are active. Read them after every
@@ -61,6 +63,31 @@ deploy.
   `ADMIN_EMAILS` attach to the founding WinslowBankz workspace as `ADMIN`.
 - All dashboard pages and APIs are scoped to the session's workspace.
 - No `DATABASE_URL` → demo mode: open dashboard with seed data, no auth.
+
+## Kick auto-clipping (zero-touch)
+
+Connect a Kick channel in Dashboard → Accounts and WinClipz subscribes to that
+broadcaster's `livestream.status.updated` events. When a stream ends:
+
+1. The webhook matches `broadcaster.user_id` to a connected SocialAccount —
+   this, not the signature, is what proves the event belongs to a workspace
+   (Kick signs every app's webhooks with one global key).
+2. The newest VOD is resolved via Kick's v2 videos endpoint (undocumented; the
+   same one yt-dlp targets — treated as best-effort, never fatal).
+3. A QUEUED Stream is created under the workspace's monthly quota; the worker
+   downloads the VOD with yt-dlp (through the residential proxy) and clips it.
+
+If the VOD isn't published yet the event is skipped — the creator can still
+paste the link manually. Requires the Kick app's webhook URL to point at
+`https://<app>/api/webhooks/kick`.
+
+## Clip translation (ElevenLabs)
+
+Approved clips can be re-voiced into other languages *in the creator's own
+voice*; each dub becomes its own Clip and flows through review + posting. Set
+`ELEVENLABS_API_KEY` on the worker and pick languages in Settings. Dubs run
+only on APPROVED originals (never a dub of a dub) and are plan-gated, because
+dubbing costs ~$0.30-0.50 per source minute.
 
 ## Posting pipeline
 
