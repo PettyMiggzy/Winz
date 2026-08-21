@@ -275,8 +275,10 @@ async function record(cap: Capture): Promise<void> {
  */
 async function waitForTable(name: string): Promise<void> {
   for (;;) {
+    // ::text on the argument too — an untyped parameter leaves Postgres
+    // unable to pick to_regclass's overload on some servers.
     const [{ present }] = await sql<{ present: string | null }[]>`
-      SELECT to_regclass(${`public."${name}"`})::text AS present`;
+      SELECT to_regclass(${`public."${name}"`}::text)::text AS present`;
     if (present) return;
     await new Promise((r) => setTimeout(r, 2000));
   }
