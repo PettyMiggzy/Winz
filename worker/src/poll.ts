@@ -58,6 +58,22 @@ function parseFacecam(raw: string | null): { x: number; y: number; w: number; h:
 }
 
 /**
+ * The shared migration file sits at the repo root in development and is copied
+ * next to the app in the container, so try both rather than pinning a layout.
+ */
+async function readMigrations(): Promise<string> {
+  const candidates = ["../../prisma/migrations.sql", "../prisma/migrations.sql"];
+  for (const rel of candidates) {
+    try {
+      return await readFile(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
+    } catch {
+      /* try the next layout */
+    }
+  }
+  throw new Error("prisma/migrations.sql not found — the image is missing it");
+}
+
+/**
  * Create the schema in whatever database this worker is actually connected to,
  * if it isn't there yet. This sidesteps multi-branch / multi-project confusion:
  * the tables always land in the DB the worker uses. Idempotent — skips when the
@@ -73,107 +89,19 @@ async function ensureSchema(): Promise<void> {
     await sql.unsafe(ddl).simple(); // multiple statements → simple protocol
     console.info("[winclipz-worker] schema created.");
   }
-  // Idempotent micro-migrations for columns newer than the base schema.
-  await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "claimedAt" timestamptz`;
-  await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "attempts" integer NOT NULL DEFAULT 0`;
-  await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "meta" jsonb`;
-  await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "claimedAt" timestamptz`;
-  await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS "attempts" integer NOT NULL DEFAULT 0`;
-  await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "plan" text NOT NULL DEFAULT 'FREE'`;
-  await sql`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordHash" text`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS "Session" (
-      id text PRIMARY KEY,
-      "tokenHash" text NOT NULL UNIQUE,
-      "userId" text NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-      "expiresAt" timestamptz NOT NULL,
-      "createdAt" timestamptz NOT NULL DEFAULT now()
-    )`;
-  await sql`CREATE INDEX IF NOT EXISTS "Session_userId_idx" ON "Session"("userId")`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS "ApiKey" (
-      id text PRIMARY KEY,
-      "tenantId" text NOT NULL REFERENCES "Tenant"(id) ON DELETE CASCADE,
-      name text NOT NULL,
-      "keyHash" text NOT NULL UNIQUE,
-      "lastUsedAt" timestamptz,
-      "createdAt" timestamptz NOT NULL DEFAULT now()
-    )`;
-  await sql`CREATE INDEX IF NOT EXISTS "ApiKey_tenantId_idx" ON "ApiKey"("tenantId")`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS "RateLimit" (
-      bucket text PRIMARY KEY,
-      count integer NOT NULL DEFAULT 0,
-      "resetAt" timestamptz NOT NULL
-    )`;
-  await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "dubLanguages" text`;
-  await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "clipLayout" text NOT NULL DEFAULT 'crop'`;
-  await sql`ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "facecam" text`;
-  await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "lang" text`;
-  await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "sourceClipId" text`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS "Dub" (
-      id text PRIMARY KEY,
-      "tenantId" text NOT NULL REFERENCES "Tenant"(id) ON DELETE CASCADE,
-      "clipId" text NOT NULL REFERENCES "Clip"(id) ON DELETE CASCADE,
-      lang text NOT NULL,
-      status text NOT NULL DEFAULT 'QUEUED',
-      "externalId" text,
-      "dubClipId" text,
-      error text,
-      "claimedAt" timestamptz,
-      attempts integer NOT NULL DEFAULT 0,
-      "createdAt" timestamptz NOT NULL DEFAULT now()
-    )`;
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS "Dub_clip_lang_uniq" ON "Dub"("clipId", lang)`;
-  await sql`CREATE INDEX IF NOT EXISTS "Dub_tenantId_idx" ON "Dub"("tenantId")`;
-  await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "musicChecked" boolean NOT NULL DEFAULT false`;
-  await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "musicTrack" text`;
-  await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS error text`;
-  // Uploaded-but-unconfirmed. Deliberately outside the reaper's requeue window:
-  // re-claiming one of these would post the clip a second time.
-  //
-  // Simple protocol on purpose: ALTER TYPE ... ADD VALUE is rejected inside a
-  // transaction block on older servers, and the extended protocol wraps
-  // statements in one. Non-fatal — a worker that can't add the value should
-  // still cut clips, so it warns instead of taking the process down.
+  // One shared file, run by the worker here and by the web app at build time
+  // (scripts/migrate.mjs). Keeping them in sync by hand is how the dashboard
+  // ends up asking for a column that only the worker knows about.
+  await sql.unsafe(await readMigrations()).simple();
+
+  // Enum values stay here: ALTER TYPE ... ADD VALUE is rejected inside a
+  // transaction block on some servers, so it needs the simple protocol on its
+  // own. Non-fatal — a worker that can't add the value should still cut clips.
   try {
     await sql.unsafe(`ALTER TYPE "PostStatus" ADD VALUE IF NOT EXISTS 'PROCESSING'`).simple();
   } catch (e) {
     console.warn("[winclipz-worker] could not add PostStatus.PROCESSING:", e instanceof Error ? e.message : e);
   }
-  await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "notBefore" timestamptz`;
-  await sql`ALTER TABLE "Stream" ADD COLUMN IF NOT EXISTS "chatCaptureId" text`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS "ChatCapture" (
-      id text PRIMARY KEY,
-      "tenantId" text NOT NULL REFERENCES "Tenant"(id) ON DELETE CASCADE,
-      "broadcasterId" text NOT NULL,
-      slug text NOT NULL,
-      "chatroomId" text,
-      status text NOT NULL DEFAULT 'QUEUED',
-      "streamStartedAt" timestamptz NOT NULL,
-      "endedAt" timestamptz,
-      messages integer NOT NULL DEFAULT 0,
-      error text,
-      "claimedAt" timestamptz,
-      attempts integer NOT NULL DEFAULT 0,
-      "createdAt" timestamptz NOT NULL DEFAULT now()
-    )`;
-  await sql`CREATE INDEX IF NOT EXISTS "ChatCapture_tenantId_idx" ON "ChatCapture"("tenantId")`;
-  await sql`CREATE INDEX IF NOT EXISTS "ChatCapture_status_idx" ON "ChatCapture"(status)`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS "ChatBucket" (
-      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      "captureId" text NOT NULL REFERENCES "ChatCapture"(id) ON DELETE CASCADE,
-      minute integer NOT NULL,
-      counts integer[] NOT NULL
-    )`;
-  await sql`CREATE UNIQUE INDEX IF NOT EXISTS "ChatBucket_capture_minute_uniq" ON "ChatBucket"("captureId", minute)`;
-  // Prevent duplicate live posts for the same clip+account (concurrent approve).
-  await sql`
-    CREATE UNIQUE INDEX IF NOT EXISTS "Post_clip_account_live_uniq"
-    ON "Post"("clipId", "accountId") WHERE status <> 'FAILED'`;
   // Recover jobs orphaned by container restarts before claimedAt existed.
   const legacy = await sql`
     UPDATE "Stream" SET status = 'QUEUED'

@@ -56,6 +56,31 @@ Boot logs confess the config: `database host: …`, `R2: configured/NOT
 CONFIGURED`, and which posting providers are active. Read them after every
 deploy.
 
+## Schema migrations
+
+`prisma/migrations.sql` is the single source of truth, run by **both** sides:
+
+- the worker at boot (`ensureSchema` in `worker/src/poll.ts`)
+- the web app at build (`scripts/migrate.mjs`, wired into `vercel.json`)
+
+Both run it because they deploy independently. When only the worker ran
+migrations, a Vercel deploy carrying a new column would ask Postgres for
+something that didn't exist yet and 500 the dashboard until the worker caught
+up — which is exactly how the `musicChecked` column broke the review queue.
+
+Rules for anything added to that file:
+
+- **Additive only.** No `DROP`, no destructive `ALTER`. This runs against
+  production on every deploy; a build must never be able to delete a column.
+  (This is why it replaced `prisma db push`, which compares the whole schema and
+  once proposed dropping unrelated tables in this database.)
+- **Idempotent.** `IF NOT EXISTS` on everything.
+- **No `ALTER TYPE ... ADD VALUE`.** It's rejected inside a transaction block on
+  some servers. Enum values stay in the worker, wrapped and non-fatal.
+
+A failed migration stops the deploy rather than shipping code the database
+can't serve.
+
 ## Auth & workspaces
 
 - Email+password auth; sessions in Postgres (30-day HttpOnly cookie).

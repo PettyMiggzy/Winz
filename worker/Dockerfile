@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends unzip \
 WORKDIR /app
 COPY worker/package.json ./
 RUN npm install --no-audit --no-fund
+# Schema migrations are shared with the web app and live at the repo root.
+COPY prisma/migrations.sql ./prisma/migrations.sql
 COPY worker/ ./
 
 ENV WORK_DIR=/tmp/winclipz

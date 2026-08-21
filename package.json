@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && node scripts/db-push-if-configured.mjs && next build",
+    "build": "prisma generate && node scripts/migrate.mjs && next build",
     "start": "next start",
     "test": "tsx test/kick-signature.test.mjs && tsx test/ramp.test.mjs && tsx test/schedule.test.mjs",
     "postinstall": "prisma generate",
