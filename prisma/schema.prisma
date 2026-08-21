@@ -187,6 +187,11 @@ model Clip {
   status            ClipStatus @default(PENDING)
   assignedPlatform  Platform?
   flaggedMusic      Boolean    @default(false)
+  /// Whether the clip was actually screened for copyrighted music. False means
+  /// unknown, not clean — an unscreened clip must never look screened.
+  musicChecked      Boolean    @default(false)
+  /// "Artist — Title" when a commercial recording was identified.
+  musicTrack        String?
   storageKey        String?
   startMs           Int?
   endMs             Int?

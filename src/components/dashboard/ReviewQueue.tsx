@@ -161,11 +161,22 @@ export function ReviewQueue({
                     </span>
                   )}
                   <span className="text-xs text-fog">{c.signal}</span>
-                  {c.flaggedMusic && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-magenta/15 px-2 py-0.5 text-xs font-semibold text-magenta-soft">
-                      <IconMusicOff className="h-3 w-3" /> music flagged
+                  {/* Name the track — "music flagged" alone leaves the creator
+                      no way to judge the risk. And an unscreened clip has to say
+                      so, or it reads as one that passed. */}
+                  {c.flaggedMusic ? (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-magenta/15 px-2 py-0.5 text-xs font-semibold text-magenta-soft"
+                      title={c.musicTrack ? `Identified: ${c.musicTrack}` : undefined}
+                    >
+                      <IconMusicOff className="h-3 w-3" />
+                      {c.musicTrack ?? "copyrighted music"}
                     </span>
-                  )}
+                  ) : c.musicChecked === false ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-ink-700 px-2 py-0.5 text-xs font-semibold text-fog">
+                      <IconMusicOff className="h-3 w-3" /> not screened
+                    </span>
+                  ) : null}
                 </div>
                 <h3 className="mt-2 truncate font-bold">{c.title}</h3>
                 <p className="truncate text-sm text-fog">Hook: “{c.hook}” · {c.stream} · {c.createdAt}</p>

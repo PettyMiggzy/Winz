@@ -17,7 +17,7 @@ import { processVideo } from "../engine/index.ts";
 import { probeDuration } from "../engine/ffmpeg.ts";
 import { buildChatSignal, type ChatBucketRow } from "./chat/buckets.ts";
 import { resolveLatestVod } from "./kickweb.ts";
-import { detectMusic } from "./music.ts";
+import { detectMusic, musicScreeningEnabled } from "./music.ts";
 import { config } from "./config.ts";
 import { r2Configured, uploadFile } from "./r2.ts";
 import { downloadSource } from "./download.ts";
@@ -127,6 +127,8 @@ async function ensureSchema(): Promise<void> {
     )`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS "Dub_clip_lang_uniq" ON "Dub"("clipId", lang)`;
   await sql`CREATE INDEX IF NOT EXISTS "Dub_tenantId_idx" ON "Dub"("tenantId")`;
+  await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "musicChecked" boolean NOT NULL DEFAULT false`;
+  await sql`ALTER TABLE "Clip" ADD COLUMN IF NOT EXISTS "musicTrack" text`;
   await sql`ALTER TABLE "Post" ADD COLUMN IF NOT EXISTS error text`;
   // Uploaded-but-unconfirmed. Deliberately outside the reaper's requeue window:
   // re-claiming one of these would post the clip a second time.
@@ -314,7 +316,10 @@ async function processOne(s: QueuedStream): Promise<void> {
 
     for (const c of manifest.clips) {
       const music = await detectMusic(c.file);
-      if (music.action === "skip") continue;
+      if (music.action === "skip") {
+        console.warn(`[${s.id}] dropped "${c.title}" — MUSIC_POLICY=skip and it contains ${music.track}`);
+        continue;
+      }
       const clipId = crypto.randomUUID();
       // Upload the rendered mp4 to R2 so it's durable + web-servable; store the
       // R2 key. Without R2 configured, fall back to the local path (dev only —
@@ -329,10 +334,11 @@ async function processOne(s: QueuedStream): Promise<void> {
       await sql`
         INSERT INTO "Clip"
           (id, "tenantId", "streamId", title, hook, "durationSec", score, signal,
-           "flaggedMusic", "storageKey", "startMs", "endMs")
+           "flaggedMusic", "musicChecked", "musicTrack", "storageKey", "startMs", "endMs")
         VALUES (${clipId}, ${s.tenantId}, ${s.id}, ${c.title}, ${c.caption},
            ${Math.round(c.end - c.start)}, ${Math.round(c.score)}, ${c.category},
-           ${music.flagged}, ${storageKey}, ${Math.round(c.start * 1000)}, ${Math.round(c.end * 1000)})`;
+           ${music.flagged}, ${music.checked}, ${music.track ?? null},
+           ${storageKey}, ${Math.round(c.start * 1000)}, ${Math.round(c.end * 1000)})`;
     }
     // Guard the terminal write with status='PROCESSING' so a reaped-and-reclaimed
     // job can't have its result clobbered by the original (now-zombie) worker.
@@ -358,6 +364,11 @@ export async function runPoller(intervalMs = 5000): Promise<void> {
     r2Configured
       ? `[winclipz-worker] R2: configured (bucket ${process.env.R2_BUCKET})`
       : "[winclipz-worker] R2: NOT CONFIGURED — clips will be stranded on this worker's local disk!"
+  );
+  console.info(
+    musicScreeningEnabled()
+      ? "[winclipz-worker] music screening: on (AudD)"
+      : "[winclipz-worker] music screening: OFF — set AUDD_API_KEY. Clips are NOT checked for copyrighted music; the review queue will say so per clip."
   );
   await ensureSchema();
   console.info("[winclipz-worker] polling for QUEUED streams…");

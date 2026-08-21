@@ -22,6 +22,10 @@ export interface Clip {
   status: ClipStatus;
   assignedTo?: Platform;
   flaggedMusic?: boolean;
+  /** Whether the clip was screened at all. False = unknown, not clean. */
+  musicChecked?: boolean;
+  /** "Artist — Title" of the recording found in the clip. */
+  musicTrack?: string;
   views?: number;
   likes?: number;
   thumbTint: string; // gradient class for the placeholder thumb

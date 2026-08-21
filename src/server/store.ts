@@ -95,6 +95,8 @@ export async function getClips(): Promise<Clip[]> {
         ? (c.assignedPlatform.toLowerCase() as Platform)
         : undefined,
       flaggedMusic: c.flaggedMusic,
+      musicChecked: c.musicChecked,
+      musicTrack: c.musicTrack ?? undefined,
       views: posted?.views ?? undefined,
       likes: posted?.likes ?? undefined,
       thumbTint: tintFor(c.id),

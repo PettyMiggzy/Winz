@@ -90,7 +90,10 @@ export default async function ClipsPage({
                 )}
                 {c.flaggedMusic && (
                   <p className="mt-2 inline-flex items-center gap-1 text-[11px] text-magenta-soft">
-                    <IconMusicOff className="h-3 w-3" /> music stripped
+                    {/* Nothing is stripped — the audio is untouched. Say what
+                        was actually found. */}
+                    <IconMusicOff className="h-3 w-3" />
+                    {c.musicTrack ? `contains ${c.musicTrack}` : "copyrighted music"}
                   </p>
                 )}
               </div>

@@ -166,6 +166,35 @@ a post goes `POSTING` -> `PROCESSING` -> `POSTED`/`FAILED`:
 `PROCESSING` is deliberately outside the stale-claim reaper's window —
 requeueing one would post the clip twice.
 
+## Music screening
+
+Clips cut from a stream carry whatever the streamer was playing, and posting
+that to a creator's TikTok or Reels account is how they collect mutes and
+strikes. Each rendered clip is fingerprinted against AudD.
+
+Set `AUDD_API_KEY` on the worker. Boot logs say which mode you're in:
+
+```
+[winclipz-worker] music screening: on (AudD)
+[winclipz-worker] music screening: OFF — set AUDD_API_KEY. …
+```
+
+- A 25-second, 44.1 kHz mono MP3 sample is sent (AudD's standard endpoint caps
+  at 10 MB; the mp4 itself would often exceed it).
+- A hit stores the track on `Clip.musicTrack` and shows it in the review queue —
+  "Drake — Hotline Bling", not a bare "music flagged", so the creator can judge
+  the risk.
+- `MUSIC_POLICY=skip` drops flagged clips instead. The default is to flag,
+  because nothing auto-posts without human approval anyway.
+
+**Unchecked is not clean.** No API key, a quota error, a bad token, a timeout,
+or a match AudD can't name all return `checked: false`, which is stored on
+`Clip.musicChecked` and rendered as **"not screened"** in the review queue. A
+clip that wasn't screened must never look like one that passed.
+
+Stripping the music stem (Demucs) is not implemented — a flagged clip is a
+decision for a person, not something to silently rewrite.
+
 ## Developer API (monetizable surface)
 
 Public REST API, keys managed in Dashboard → Settings → API keys (sha256

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "test": "tsx test/engine.test.mjs && tsx test/chat.test.mjs && tsx test/publish.test.mjs",
+    "test": "tsx test/engine.test.mjs && tsx test/chat.test.mjs && tsx test/publish.test.mjs && tsx test/music.test.mjs",
     "clip": "tsx engine/cli.ts"
   },
   "dependencies": {
