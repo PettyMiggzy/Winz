@@ -16,7 +16,7 @@ import crypto from "node:crypto";
 import { processVideo } from "../engine/index.ts";
 import { probeDuration } from "../engine/ffmpeg.ts";
 import { buildChatSignal, type ChatBucketRow } from "./chat/buckets.ts";
-import { resolveLatestVod } from "./kickweb.ts";
+import { resolveVodsInWindow } from "./kickweb.ts";
 import { detectMusic, musicScreeningEnabled } from "./music.ts";
 import { config } from "./config.ts";
 import { r2Configured, uploadFile } from "./r2.ts";
@@ -35,6 +35,7 @@ interface QueuedStream {
   facecam: string | null;
   chatCaptureId: string | null;
   startedAt: Date;
+  endedAt: Date | null;
 }
 
 /**
@@ -43,9 +44,25 @@ interface QueuedStream {
  * datacenter IPs, and only the worker has the residential proxy.
  */
 const KICK_LATEST = "kick-latest:";
-/** How long to keep waiting for Kick to publish a VOD before giving up. */
+/** How long after a stream ENDS to keep waiting for Kick to publish its VOD. */
 const VOD_WAIT_LIMIT_MS = 3 * 3600_000;
 const VOD_RETRY_MIN = 5;
+
+/**
+ * Keep a claim alive while a long step runs, and report whether we still hold
+ * it. The claim's only heartbeat used to live in processVideo's onProgress,
+ * which first fires at the transcribe stage — so a multi-hour download ran with
+ * a claim going stale, got reaped at 20 minutes, and a second worker started the
+ * same job while the first kept going. Returns a stop function.
+ */
+function heartbeat(streamId: string, everyMs = 60_000): () => void {
+  const timer = setInterval(() => {
+    void sql`
+      UPDATE "Stream" SET "claimedAt" = now()
+      WHERE id = ${streamId} AND status = 'PROCESSING'`.catch(() => {});
+  }, everyMs);
+  return () => clearInterval(timer);
+}
 
 /** Parse the stored "x,y,w,h" facecam rect; null when unset or malformed. */
 function parseFacecam(raw: string | null): { x: number; y: number; w: number; h: number } | undefined {
@@ -146,7 +163,8 @@ async function reapStale(): Promise<void> {
 /** Claim the oldest QUEUED stream (CAS on status). Returns null if none. */
 async function claimNext(): Promise<QueuedStream | null> {
   const found = await sql<QueuedStream[]>`
-    SELECT s.id, s."tenantId", s."sourceUrl", s.title, s."chatCaptureId", s."startedAt",
+    SELECT s.id, s."tenantId", s."sourceUrl", s.title, s."chatCaptureId",
+           s."startedAt", s."endedAt",
            t."clipLayout", t.facecam
     FROM "Stream" s JOIN "Tenant" t ON t.id = s."tenantId"
     WHERE s.status = 'QUEUED'
@@ -189,16 +207,35 @@ async function loadChatSignal(s: QueuedStream, durationSec: number): Promise<num
  */
 async function resolvePendingVod(s: QueuedStream): Promise<string | null> {
   const slug = (s.sourceUrl ?? "").slice(KICK_LATEST.length);
-  const vod = slug ? await resolveLatestVod(slug) : null;
-  if (vod) {
+  // Correlate on the broadcast's own window, not on recency. startedAt is Kick's
+  // stream start (set by the webhook) and endedAt is its end.
+  const startMs = new Date(s.startedAt).getTime();
+  const endMs = s.endedAt ? new Date(s.endedAt).getTime() : startMs;
+  const vods = slug ? await resolveVodsInWindow(slug, startMs, endMs) : [];
+
+  if (vods.length > 0) {
+    if (vods.length > 1) {
+      // A reconnect splits one broadcast into several VODs. Taking the first
+      // means the later parts aren't clipped — say so rather than let the
+      // missing hours look like the stream simply had nothing in them.
+      console.warn(
+        `[${s.id}] ${slug}: broadcast split across ${vods.length} VODs — clipping part 1 only, ` +
+          `${vods.length - 1} later part(s) not processed`
+      );
+    }
+    const vod = vods[0].url;
     await sql`UPDATE "Stream" SET "sourceUrl" = ${vod} WHERE id = ${s.id}`;
     console.info(`[${s.id}] resolved VOD for ${slug}: ${vod}`);
     return vod;
   }
-  const waited = Date.now() - new Date(s.startedAt).getTime();
+
+  // Measure the wait from when the stream ended — that's when Kick starts
+  // publishing. Measuring from startedAt would expire a long broadcast the
+  // instant it was queued.
+  const waited = Date.now() - endMs;
   if (waited > VOD_WAIT_LIMIT_MS) {
     await sql`UPDATE "Stream" SET status = 'FAILED' WHERE id = ${s.id} AND status = 'PROCESSING'`;
-    console.warn(`[${s.id}] no VOD for ${slug} after ${Math.round(waited / 60000)} min — giving up`);
+    console.warn(`[${s.id}] no VOD for ${slug} in its window after ${Math.round(waited / 60000)} min — giving up`);
     return null;
   }
   // Not a real attempt — undo the claim's increment so waiting on Kick can't
@@ -222,8 +259,11 @@ async function processOne(s: QueuedStream): Promise<void> {
   }
   const dir = await mkdtemp(join(tmpdir(), "winclipz-"));
   const input = join(dir, "source.mp4");
+  const stopBeat = heartbeat(s.id);
   try {
     // Direct fetch for uploaded files; yt-dlp for YouTube/Kick/Twitch links.
+    // A multi-hour VOD takes far longer than the reaper's 20-minute window, so
+    // the claim has to be refreshed throughout, not just once it finishes.
     await downloadSource(sourceUrl, input);
 
     const outDir = join(config.workDir, s.tenantId, s.id);
@@ -259,14 +299,23 @@ async function processOne(s: QueuedStream): Promise<void> {
       } else {
         console.warn(`[${s.id}] R2 not configured — clip saved locally only: ${c.file}`);
       }
-      await sql`
+      // Only write if this worker still holds the claim. Without this a worker
+      // that was reaped mid-job keeps going and inserts a full duplicate set of
+      // clips alongside the replacement worker's.
+      const wrote = await sql`
         INSERT INTO "Clip"
           (id, "tenantId", "streamId", title, hook, "durationSec", score, signal,
            "flaggedMusic", "musicChecked", "musicTrack", "storageKey", "startMs", "endMs")
-        VALUES (${clipId}, ${s.tenantId}, ${s.id}, ${c.title}, ${c.caption},
+        SELECT ${clipId}, ${s.tenantId}, ${s.id}, ${c.title}, ${c.caption},
            ${Math.round(c.end - c.start)}, ${Math.round(c.score)}, ${c.category},
            ${music.flagged}, ${music.checked}, ${music.track ?? null},
-           ${storageKey}, ${Math.round(c.start * 1000)}, ${Math.round(c.end * 1000)})`;
+           ${storageKey}, ${Math.round(c.start * 1000)}, ${Math.round(c.end * 1000)}
+        WHERE EXISTS (
+          SELECT 1 FROM "Stream" WHERE id = ${s.id} AND status = 'PROCESSING')`;
+      if (wrote.count === 0) {
+        console.warn(`[${s.id}] claim lost mid-job — discarding results to avoid duplicates`);
+        return;
+      }
     }
     // Guard the terminal write with status='PROCESSING' so a reaped-and-reclaimed
     // job can't have its result clobbered by the original (now-zombie) worker.
@@ -276,6 +325,7 @@ async function processOne(s: QueuedStream): Promise<void> {
     await sql`UPDATE "Stream" SET status = 'FAILED' WHERE id = ${s.id} AND status = 'PROCESSING'`;
     console.error(`[${s.id}] failed:`, e instanceof Error ? e.message : e);
   } finally {
+    stopBeat();
     await rm(dir, { recursive: true, force: true });
     // Remove rendered outputs once uploaded to R2 — otherwise WORK_DIR fills up.
     if (r2Configured) await rm(join(config.workDir, s.tenantId, s.id), { recursive: true, force: true });

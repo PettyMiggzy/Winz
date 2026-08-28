@@ -94,6 +94,9 @@ export async function POST(req: Request) {
   const slug = payload.broadcaster?.channel_slug ?? payload.broadcaster?.username;
   if (!slug) return NextResponse.json({ ok: true, note: "no channel slug" });
 
+  const parsedStart = payload.started_at ? new Date(payload.started_at) : null;
+  const startedAt = parsedStart && !Number.isNaN(parsedStart.getTime()) ? parsedStart : null;
+
   if (payload.is_live === false) {
     console.info("[kick] stream ended:", slug, payload.title);
 
@@ -129,6 +132,10 @@ export async function POST(req: Request) {
       status: "QUEUED",
       sourceUrl: `kick-latest:${slug}`,
       chatCaptureId: capture?.id ?? null,
+      // Kick's own start/end. The worker correlates the VOD against this window
+      // rather than taking the channel's newest recording — a reconnect splits a
+      // broadcast, and IRL streamers reconnect constantly.
+      startedAt: startedAt ?? new Date(),
       endedAt: payload.ended_at ? new Date(payload.ended_at) : new Date(),
     });
     if (!created.ok) {

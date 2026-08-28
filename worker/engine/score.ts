@@ -1,4 +1,5 @@
 import type { Transcript, EnergyPeak, MomentPick } from './types.ts';
+import { HttpError, isRetryable, retryAfterMs, withRetry } from './http.ts';
 
 export interface ScoreSignals {
   audioPeaks: EnergyPeak[];
@@ -98,12 +99,26 @@ async function chat(messages: { role: string; content: string }[]): Promise<stri
       response_format: { type: 'json_object' },
     }),
   });
-  if (!res.ok) throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 500)}`);
+  if (!res.ok) {
+    const err = new HttpError(res.status, await res.text()) as HttpError & { retryAfterMs?: number };
+    const after = retryAfterMs(res);
+    if (after !== null) err.retryAfterMs = after;
+    throw err;
+  }
   const data = (await res.json()) as any;
   return data.choices[0].message.content as string;
 }
 
-/** Ask the LLM for the best moments. One retry with the validation error fed back. */
+/**
+ * Ask the LLM for the best moments.
+ *
+ * Transport failures and schema failures need opposite handling, and treating
+ * them alike was actively harmful: a 400 for an over-long prompt used to be
+ * "retried" by appending two more turns to the same message array — strictly
+ * larger, and guaranteed to fail again. So a rate limit retries the SAME
+ * messages with backoff, a bad-request fails immediately, and only a genuine
+ * schema violation grows the conversation with a correction.
+ */
 export async function scoreMoments(
   t: Transcript,
   signals: ScoreSignals,
@@ -117,10 +132,22 @@ export async function scoreMoments(
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const content = await chat(messages);
+      // withRetry handles 429/5xx on the unchanged prompt; anything else throws
+      // straight out to the schema-correction path or to the caller.
+      const content = await withRetry(() => chat(messages), { label: 'llm-score', attempts: 4 });
       return validate(JSON.parse(content));
     } catch (e) {
       lastErr = e as Error;
+      if (e instanceof HttpError) {
+        // A 4xx that survived the retries is a malformed request — most often
+        // the prompt exceeding the context window. Growing it cannot help.
+        throw new Error(
+          e.status === 413 || e.status === 400
+            ? `scoring request rejected (${e.status}) — the transcript is likely too long for ${LLM_MODEL}: ${e.body.slice(0, 200)}`
+            : e.message
+        );
+      }
+      if (isRetryable(e) && !(e instanceof SyntaxError)) throw e;
       messages.push(
         { role: 'assistant', content: 'INVALID' },
         { role: 'user', content: `Your last response was invalid (${lastErr.message}). Return ONLY the JSON object in the required schema.` },

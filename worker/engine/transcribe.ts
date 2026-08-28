@@ -2,6 +2,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Transcript, Word, Segment } from './types.ts';
 import { extractAudio, probeDuration } from './ffmpeg.ts';
+import { HttpError, retryAfterMs, withRetry } from './http.ts';
 
 const GROQ_BASE = process.env.STT_BASE_URL ?? 'https://api.groq.com/openai/v1';
 const STT_MODEL = process.env.STT_MODEL ?? 'whisper-large-v3-turbo';
@@ -24,17 +25,27 @@ async function transcribeFile(audioPath: string): Promise<VerboseJson> {
   form.append('response_format', 'verbose_json');
   form.append('timestamp_granularities[]', 'word');
   form.append('timestamp_granularities[]', 'segment');
+  // Pinning the language stops Whisper drifting into another one on slang-heavy
+  // or music-heavy audio; the prompt biases spelling of names it can't know.
+  form.append('language', process.env.STT_LANGUAGE ?? 'en');
+  if (process.env.STT_VOCAB) form.append('prompt', process.env.STT_VOCAB);
 
-  const res = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}` },
-    body: form,
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`STT ${res.status}: ${body.slice(0, 500)}`);
-  }
-  return (await res.json()) as VerboseJson;
+  // Transcription sits downstream of a download that can cost tens of GB, so a
+  // rate limit here must not discard the whole job — retry rather than throw.
+  return withRetry(async () => {
+    const res = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}` },
+      body: form,
+    });
+    if (!res.ok) {
+      const err = new HttpError(res.status, await res.text()) as HttpError & { retryAfterMs?: number };
+      const after = retryAfterMs(res);
+      if (after !== null) err.retryAfterMs = after;
+      throw err;
+    }
+    return (await res.json()) as VerboseJson;
+  }, { label: 'stt', attempts: 4 });
 }
 
 /** Transcribe a video/audio file with word-level timestamps. Chunks long inputs

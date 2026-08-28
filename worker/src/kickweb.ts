@@ -83,23 +83,44 @@ interface VodEntry {
   uuid?: string;
   created_at?: string;
   start_time?: string;
+  duration?: number; // milliseconds, when Kick reports it
+}
+
+export interface KickVod {
+  url: string;
+  startMs: number;
 }
 
 /**
- * Newest published VOD for a channel, as a kick.com watch URL yt-dlp can take.
+ * VODs for a channel whose recording started inside [fromMs, toMs].
  *
- * Kick publishes a VOD some minutes after the stream ends — a null here often
- * means "not yet", not "never", so callers should retry rather than give up.
+ * Correlating by time rather than taking the newest matters more here than it
+ * looks. A dropped mobile connection splits one broadcast into several VODs, and
+ * IRL streamers reconnect constantly — so "newest" can be the tail of the
+ * session, a later session entirely, or a different day's stream. Clipping the
+ * wrong broadcast produces clips that look fine and are from the wrong footage,
+ * which is worse than producing nothing.
+ *
+ * Returns oldest first, or an empty array when nothing lines up.
  */
-export async function resolveLatestVod(slug: string): Promise<string | null> {
+export async function resolveVodsInWindow(
+  slug: string,
+  fromMs: number,
+  toMs: number,
+  marginMs = 30 * 60_000
+): Promise<KickVod[]> {
   const json = await kickJson<VodEntry[]>(`/api/v2/channels/${encodeURIComponent(slug)}/videos`);
-  if (!Array.isArray(json) || json.length === 0) return null;
-  // Newest-first isn't guaranteed — sort by start/created time when present.
-  const sorted = [...json].sort(
-    (a, b) =>
-      (Date.parse(b.start_time ?? b.created_at ?? "") || 0) -
-      (Date.parse(a.start_time ?? a.created_at ?? "") || 0)
-  );
-  const uuid = sorted[0]?.video?.uuid ?? sorted[0]?.uuid;
-  return uuid ? `https://kick.com/${slug}/videos/${uuid}` : null;
+  if (!Array.isArray(json)) return [];
+  const lo = fromMs - marginMs;
+  const hi = toMs + marginMs;
+  return json
+    .map((v) => {
+      const uuid = v.video?.uuid ?? v.uuid;
+      const startMs = Date.parse(v.start_time ?? v.created_at ?? "");
+      return uuid && Number.isFinite(startMs)
+        ? { url: `https://kick.com/${slug}/videos/${uuid}`, startMs }
+        : null;
+    })
+    .filter((v): v is KickVod => v !== null && v.startMs >= lo && v.startMs <= hi)
+    .sort((a, b) => a.startMs - b.startMs);
 }

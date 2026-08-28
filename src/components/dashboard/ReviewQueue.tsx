@@ -29,6 +29,19 @@ export function ReviewQueue({
   const pending = initial.filter((c) => decisions[c.id] === "pending");
   const approved = initial.filter((c) => decisions[c.id] === "approved").length;
 
+  // Bulk approval is the one place the human gate stops operating, so it only
+  // covers clips nothing is asking a person to decide about. TikTok needs a
+  // per-post privacy choice; a clip with an identified track needs someone to
+  // actually hear it before it lands on their account.
+  //
+  // "Not screened" deliberately does NOT hold a clip back: with no AudD key
+  // that's every clip, and a button that approves nothing is worse than one
+  // that's honest about what it covers. The per-clip badge carries that.
+  const bulk = initial.filter(
+    (c) => decisions[c.id] === "pending" && assign[c.id] !== "tiktok" && !c.flaggedMusic
+  );
+  const heldBack = pending.length - bulk.length;
+
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   // Clip awaiting TikTok-specific consent (privacy level etc.) before approval.
   const [tiktokDialog, setTiktokDialog] = useState<Clip | null>(null);
@@ -101,12 +114,9 @@ export function ReviewQueue({
           <IconCheck className="h-3.5 w-3.5 text-brand" /> {approved} approved to post
         </div>
         <button
+          disabled={bulk.length === 0}
           onClick={() => {
-            // TikTok clips need per-post consent (privacy dialog) — bulk
-            // approval covers the rest and leaves TikTok ones pending.
-            const toApprove = initial.filter(
-              (c) => decisions[c.id] === "pending" && assign[c.id] !== "tiktok"
-            );
+            const toApprove = bulk;
             setFailed((prev) => {
               const next = { ...prev };
               for (const c of toApprove) next[c.id] = false;
@@ -119,11 +129,19 @@ export function ReviewQueue({
             });
             for (const c of toApprove) void persist(c.id, "approved");
           }}
-          className="btn-primary ml-auto"
+          className="btn-primary ml-auto disabled:cursor-not-allowed disabled:opacity-40"
+          title={heldBack > 0 ? `${heldBack} clip(s) need a look first` : undefined}
         >
-          Approve all
+          Approve {bulk.length}
         </button>
       </div>
+      {heldBack > 0 && (
+        <p className="-mt-3 mb-6 text-xs text-fog">
+          {heldBack} clip{heldBack === 1 ? "" : "s"} held back from bulk approval — TikTok posts
+          need their privacy setting chosen, and clips with identified music need you to hear
+          them. Approve those individually.
+        </p>
+      )}
 
       {pending.length === 0 ? (
         <div className="card grid place-items-center py-20 text-center">
@@ -179,7 +197,7 @@ export function ReviewQueue({
                   ) : null}
                 </div>
                 <h3 className="mt-2 truncate font-bold">{c.title}</h3>
-                <p className="truncate text-sm text-fog">Hook: “{c.hook}” · {c.stream} · {c.createdAt}</p>
+                <p className="truncate text-sm text-fog">Caption: “{c.hook}” · {c.stream} · {c.createdAt}</p>
                 {c.videoUrl && (
                   <a
                     href={c.videoUrl}
